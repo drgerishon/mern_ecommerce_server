@@ -1,6 +1,42 @@
 const mongoose = require('mongoose')
 const crypto = require('crypto')
 const {ObjectId} = mongoose.Schema
+const addressSchema = new mongoose.Schema({
+    streetAddress: {
+        type: String,
+    },
+    city: {
+        type: String,
+    },
+    state: {
+        type: String,
+
+    },
+    zipCode: {
+        type: String,
+    },
+    country: {
+        type: String,
+    },
+    lat: {
+        type: Number,
+        required: true
+    },
+
+    lng: {
+        type: Number,
+        required: true
+    },
+    name: {
+        type: String,
+    },
+    googlePlaceId: {
+        type: String,
+        required: true
+    }
+}, {timestamps: true});
+
+
 const userSchema = new mongoose.Schema(
     {
         username: {
@@ -12,22 +48,34 @@ const userSchema = new mongoose.Schema(
             index: true,
             lowercase: true,
         },
-        phones: [
-            {
-                countryCode: {
-                    type: String,
-                    default: '+254',
+        phoneNumber: {
+            type: String,
+            validate: {
+                validator: function (v) {
+                    return /^(?:\+254|0)[17]\d{8}$/.test(v);
                 },
-                phoneNumber: String,
-            }],
-
-        name: {
+                message: '{VALUE} is not a valid  phone number!'
+            },
+            required: [true, 'User phone number required']
+        },
+        firstName: {
             type: String,
             trim: true,
             required: true,
             max: 32,
         },
-        drivingLisense: {
+        middleName: {
+            type: String,
+            trim: true,
+            max: 32,
+        }
+        , surname: {
+            type: String,
+            trim: true,
+            required: true,
+            max: 32,
+        },
+        drivingLicense: {
             type: String,
         },
         idNo: {
@@ -45,15 +93,36 @@ const userSchema = new mongoose.Schema(
         role: {
             type: String,
             default: 'subscriber',
+            enum: ["subscriber", "admin", "carrier", "farmer"]
+        },
+        dob: {
+            type: Date,
+        },
+        terms: {
+            type: String,
+            required: true,
+            default: false
+        },
+
+        gender: {
+            type: String,
+            enum: ["male", "female", "intersex", "undisclosed"]
+        },
+        blocked: {
+            type: Boolean,
+            default: false,
+        },
+        suspended: {
+            type: Boolean,
+            default: false,
+
         },
         cart: {
             type: Array,
             default: []
         },
 
-        address: {
-            type: String,
-        },
+        address: [addressSchema],
 
         wishlist: [{type: ObjectId, ref: "Product"}],
 
@@ -108,5 +177,6 @@ userSchema.methods = {
         return Math.round(new Date().valueOf() * Math.random()) + ''
     },
 }
+
 
 module.exports = mongoose.model('User', userSchema)

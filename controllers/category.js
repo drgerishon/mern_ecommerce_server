@@ -77,12 +77,13 @@ exports.remove = async (req, res) => {
 };
 
 exports.getSubs = (req, res) => {
-    // Sub.find({parent: req.params._id}).exec((error, result) => {
-    //     if (error) {
-    //         console.log(error)
-    //     } else {
-    //         res.json(result)
-    //     }
-    // })
+    console.log(req.params._id)
+    Sub.find({parent: req.params._id}).exec((error, result) => {
+        if (error) {
+            console.log(error)
+        } else {
+            res.json(result)
+        }
+    })
 
 };

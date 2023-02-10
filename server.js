@@ -6,6 +6,11 @@ const cookieParser = require("cookie-parser");
 const {} = require('dotenv/config')
 const cors = require('cors')
 const fs = require('fs')
+const {getConversionRate} = require("./helpers/dollar-scraper");
+const {log} = require("nodemon/lib/utils");
+const RandomFunction = require("./helpers/currency-converter");
+const {chooseRandomFunction} = require("./helpers/currency-converter");
+const controller = require("./controllers/dollar");
 
 const app = express()
 
@@ -15,7 +20,8 @@ const options = {
     useNewUrlParser: true,
     useUnifiedTopology: true
 }
-
+//
+setInterval(controller.chooseRandomFunction, 1440000);
 
 mongoose.set("strictQuery", false);
 mongoose.connect(process.env.DATABASE_URL, options)
@@ -23,7 +29,6 @@ mongoose.connect(process.env.DATABASE_URL, options)
         console.log('Database connection established')
     })
     .catch((error) => console.log(error))
-
 
 //middleware
 app.use(morgan('dev'))
@@ -52,7 +57,9 @@ app.use(cors())
 // port
 const port = process.env.PORT || 8000
 
-
+// setInterval(function () {
+//    chooseRandomFunction()
+// }, 10000);
 fs.readdirSync('./routes/').map(r => app.use('/api', require(`./routes/${r}`)))
 
 process.on('uncaughtException', function (exception) {

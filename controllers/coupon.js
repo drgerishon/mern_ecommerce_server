@@ -2,29 +2,48 @@ const Coupon = require("../models/coupon");
 
 
 exports.create = async (req, res) => {
-    console.log(req.body)
-
-
     try {
-        const {name, expiry, discount} = req.body
-        res.json(await new Coupon({name, expiry, discount}).save())
-    } catch (e) {
-        res.status(400).send('Cannot Create coupon')
+        const coupon = new Coupon(req.body);
+        await coupon.save();
+        res.status(201).send({coupon});
+    } catch (error) {
+        res.status(400).send({error: error.message});
     }
 
 };
 
 exports.list = async (req, res) => {
     try {
-        const coupons = await Coupon.find({}).sort({createdAt: -1}).exec()
-        res.json(coupons)
-
-    } catch (e) {
-        res.status(400).send('Cannot Create coupon')
+        const coupons = await Coupon.find().sort({createdAt: -1}).exec()
+        res.send({coupons});
+    } catch (error) {
+        res.status(400).send({error: error.message});
     }
 
 }
 
+exports.getCoupon = async (req, res) => {
+
+    try {
+        const coupon = await Coupon.findById(req.params.couponId);
+        if (!coupon) return res.status(404).send({error: "Coupon not found"});
+        res.send({coupon});
+    } catch (error) {
+        res.status(400).send({error: error.message});
+    }
+};
+exports.updateCoupon = async (req, res) => {
+
+  try {
+    const coupon = await Coupon.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+    });
+    if (!coupon) return res.status(404).send({ error: "Coupon not found" });
+    res.send({ coupon });
+  } catch (error) {
+    res.status(400).send({ error: error.message });
+  }
+};
 
 exports.remove = async (req, res) => {
     try {

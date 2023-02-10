@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const Coupon = require("./coupon");
 const {ObjectId} = mongoose.Schema
 
 const cartSchema = new mongoose.Schema(
@@ -7,15 +8,21 @@ const cartSchema = new mongoose.Schema(
             {
                 product: {type: ObjectId, ref: 'Product'},
                 count: Number,
-                color: String,
                 price: Number
             }
         ],
         cartTotal: Number,
-        totalAfterDiscount: Number,
-        orderedBy: {type: ObjectId, ref: 'User'}
-
-
+        totalAfterDiscount: {
+            type:Number
+        },
+        orderedBy: {type: ObjectId, ref: 'User'},
+        // customerLocation: {
+        //     type: String,
+        // },
+        coupon: {
+            type: ObjectId,
+            ref: "Coupon"
+        }
     },
     {timestamps: true}
 )

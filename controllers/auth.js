@@ -20,18 +20,17 @@ exports.currentUser = async (req, res) => {
 }
 
 exports.preSignup = (req, res) => {
-    const {name, email, password, phone} = req.body
-    User.findOne({email: email.toLowerCase()}, (err, user) => {
+    User.findOne({email: req.body.email.toLowerCase()}, (err, user) => {
         if (user) {
             return res.status(400).json({
                 error: 'Email is taken'
             });
         }
 
-        const token = jwt.sign({name, email, password, phone}, process.env.JWT_ACCOUNT_ACTIVATION, {expiresIn: '10m'})
+        const token = jwt.sign(req.body, process.env.JWT_ACCOUNT_ACTIVATION, {expiresIn: '10m'})
         const emailData = {
             from: process.env.MAIL_USERNAME,
-            to: email,
+            to: req.body.email,
             subject: `Account activation link`,
             html: `
             <p>Please use the following link to activate your account.The link expires after 10 minutes</p>
@@ -44,30 +43,43 @@ exports.preSignup = (req, res) => {
         sgMail.send(emailData).then(sent => {
             console.log(sent)
             return res.json({
-                message: `Check ${email} within 10 minutes`
+                message: `Check ${req.body.email} within 10 minutes`
             });
         });
     })
 }
 exports.signup = (req, res) => {
     const token = req.body.token
+
     if (token) {
         jwt.verify(token, process.env.JWT_ACCOUNT_ACTIVATION, (err, decoded) => {
             if (err) {
                 return res.status(401).json({
                     error: "Link expired.Sign up again"
-
                 });
             }
-            const {name, email, password} = jwt.decode(token)
+            const {firstName, middleName, surname, phone, gender, terms, email, password} = jwt.decode(token)
+            console.log(firstName, middleName, surname, gender, terms, email, password)
+
+
             let username = shortId.generate();
             let profile = `${process.env.CLIENT_URL}/profile/${username}`;
 
-            const newUser = new User({name, email, password, profile, username});
+            const newUser = new User({
+                firstName,
+                middleName,
+                surname,
+                gender,
+                terms,
+                email,
+                password,
+                profile,
+                username
+            });
             newUser.save((err, doc) => {
                 if (err) {
                     return res.status(400).json({
-                        error: errorHandler(err)
+                        error: err.message
                     });
                 }
                 return res.json({
@@ -141,7 +153,6 @@ exports.signupByAdmin = (req, res) => {
 exports.signin = (req, res) => {
 
     const {email, password} = req.body;
-
     // check if user exist
     User.findOne({email}).exec((err, user) => {
         if (err || !user) {
@@ -160,9 +171,9 @@ exports.signin = (req, res) => {
 
         res.cookie('token', token, {expiresIn: '1d'});
 
-        const {_id, username, name, email, role} = user;
+        const {_id, username, address, cart, firstName, middleName, surname, email, role} = user;
         return res.json({
-            user: {_id, token, username, name, email, role}
+            user: {_id, token, address, cart, username, firstName, middleName, surname, email, role}
         });
     });
 };
