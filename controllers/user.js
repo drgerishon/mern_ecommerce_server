@@ -12,6 +12,15 @@ const axios = require("axios");
 const Order = require("../models/order");
 const Dollar = require("../models/dollar");
 const paypal = require("@paypal/checkout-server-sdk")
+const socketIO = require("../modules/socket");
+const Decimal = require('decimal.js');
+const {
+    calDisAmountAndFinalAmount,
+    calculateCartTotalInDollar,
+    calculateCartTotal,
+    getCartWithProductName, retrieveShippingAddress
+} = require("../helpers/cart");
+const {convertPriceToDollar} = require("../helpers/priceToDollar");
 
 
 exports.userCart = async (req, res) => {
@@ -76,19 +85,24 @@ exports.emptyCart = async (req, res) => {
 
 }
 exports.saveAddress = async (req, res) => {
+    const {place, address} = req.body
+    const {streetAddress, city, state, zipCode, country, name, lat, lng, googlePlaceId} = address
+
+    console.log('PLACE', place)
+
     try {
         const newAddress = {
-            streetAddress: req.body.streetAddress,
-            city: req.body.city,
-            state: req.body.state,
-            zipCode: req.body.zipCode,
-            country: req.body.country,
-            name: req.body.name,
-            lat: req.body.lat,
-            lng: req.body.lng,
-            googlePlaceId: req.body.googlePlaceId
+            streetAddress,
+            city,
+            place,
+            state,
+            zipCode,
+            country,
+            name,
+            lat,
+            lng,
+            googlePlaceId
         };
-
 
         const userId = req.auth._id;
         const user = await User.findOne({_id: userId});
@@ -97,16 +111,17 @@ exports.saveAddress = async (req, res) => {
         }
         let addressIndex = -1;
         user.address.forEach((address, index) => {
-            if (address.googlePlaceId === newAddress.googlePlaceId) {
+            if (googlePlaceId === newAddress.googlePlaceId) {
                 addressIndex = index;
             }
         });
 
         if (addressIndex === -1) {
-            await User.updateOne({_id: userId}, {$push: {address: newAddress}}, {new: true});
+            await User.updateOne({_id: userId}, {$push: {address: newAddress, place}}, {new: true});
         } else {
             user.address[addressIndex].streetAddress = newAddress.streetAddress;
             user.address[addressIndex].city = newAddress.city;
+            user.address[addressIndex].place = newAddress.place;
             user.address[addressIndex].lat = newAddress.lat;
             user.address[addressIndex].lng = newAddress.lng;
             user.address[addressIndex].state = newAddress.state;
@@ -127,7 +142,9 @@ exports.saveAddress = async (req, res) => {
 exports.applyCouponToUserCart = async (req, res) => {
     const {coupon, couponUsed} = req.body
     if (couponUsed === false) {
+
         const validCoupon = await Coupon.findOne({code: coupon}).exec()
+
         const user = await User.findById(req.auth._id).exec()
         // Check if the coupon exists in the database
 
@@ -177,17 +194,17 @@ exports.createOrder = async (req, res) => {
     const user = await User.findById(req.auth._id).exec();
     const cart = await Cart.findOne({orderedBy: user._id}).populate({path: "products.product", select: "title"}).exec();
     const {products, coupon, cartTotal, totalAfterDiscount} = cart;
-    let dollar = await Dollar.findOne({});
+    const dollar = await Dollar.findOne({});
+
     let finalAmount
     if (couponApplied && totalAfterDiscount) {
         finalAmount = totalAfterDiscount
     } else {
         finalAmount = cartTotal
     }
+
     let convertedFinalAmount
-    if (selectedPaymentMethod === 'Paypal' || selectedPaymentMethod === 'Card') {
-        convertedFinalAmount = (dollar.rate * finalAmount)
-    }
+    convertedFinalAmount = (dollar.rate * finalAmount)
 
 
     if (selectedPaymentMethod === 'Paypal') {
@@ -246,15 +263,19 @@ exports.createOrder = async (req, res) => {
 
     }
     if (selectedPaymentMethod === 'Card') {
+
         const newOrder = await new Order({
             products,
-            paymentIntent,
+            paymentResponsePaypal: order.result,
             orderedBy: user._id,
-            paymentMethod: paymentIntent.payment_method_types[0],
+            paymentMethod: selectedPaymentMethod.toLowerCase(),
             shippingAddress,
+            totalAmountPaid: payable,
+            deliveryEndDate,
+            deliveryStartDate,
+            coupon,
             cartTotal,
-            shippingCost,
-            totalAfterDiscount
+            discountAmount
         }).save();
 
         // Decrement quantity, increment sold
@@ -275,17 +296,15 @@ exports.createOrder = async (req, res) => {
             validCoupon.usedBy.push(user._id);
             await validCoupon.save();
         }
-        res.json({orderId: newOrder.orderId, ok: true});
+        ;
+
+
     }
 
 
-}
-;
+};
 
-
-exports.createMpesaOrder = async (req, res) => {
-
-
+exports.initiateMpesaOrder = async (req, res) => {
     const shortCode = 174379;
     const passkey = process.env.SAFARICOM_PASS_KEY;
     const url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
@@ -313,7 +332,6 @@ exports.createMpesaOrder = async (req, res) => {
                     }
             })
         res.json(result.data)
-        console.log(result.data)
 
     } catch (error) {
         // handle error
@@ -375,3 +393,184 @@ exports.getMpesaDetails = async (req, res) => {
         console.error(error.config);
     }
 }
+
+exports.createStripeOrder = async (req, res) => {
+    const {
+        shippingAddress,
+        paymentIntent,
+        couponApplied,
+        selectedPaymentMethod
+    } = req.body;
+
+    const user = await User.findById(req.auth._id).exec();
+    const cart = await Cart.findOne({orderedBy: user._id}).populate({path: "products.product", select: "title"}).exec();
+    const {products, coupon, cartTotal, totalAfterDiscount} = cart;
+    const dollar = await Dollar.findOne({});
+
+    let finalAmount;
+    if (couponApplied && totalAfterDiscount) {
+        finalAmount = totalAfterDiscount;
+    } else {
+        finalAmount = cartTotal;
+    }
+
+    const convertAmountToCents = (amount) => {
+        return Math.round(amount * 100);
+    };
+
+    const convertedPayable = convertAmountToCents(dollar.rate * finalAmount);
+    const convertedTotalCart = convertAmountToCents(dollar.rate * cartTotal);
+    const convertedTotalAfterDiscount = convertAmountToCents(dollar.rate * totalAfterDiscount);
+
+    const today = new Date();
+    const deliveryStartDate = new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000)
+    const deliveryEndDate = new Date(today.getTime() + 10 * 24 * 60 * 60 * 1000);
+
+    if (selectedPaymentMethod === 'Card') {
+        const newOrder = await new Order({
+            products,
+            paymentIntentStripe: paymentIntent,
+            orderedBy: user._id,
+            shippingAddress,
+            deliveryStartDate,
+            deliveryEndDate,
+            paymentMethod: paymentIntent.payment_method_types[0],
+            cartTotal: convertedTotalCart,
+            totalAmountPaid: convertedPayable,
+            totalAfterDiscount: convertedTotalAfterDiscount,
+            coupon
+        }).save();
+
+        // Decrement quantity, increment sold
+        const bulkOption = products.map((item) => {
+            return {
+                updateOne: {
+                    filter: {_id: item.product._id},
+                    update: {$inc: {quantity: -item.count, sold: item.count}},
+                },
+            };
+        });
+        await Product.bulkWrite(bulkOption, {new: true});
+
+        if (coupon) {
+            const validCoupon = await Coupon.findById(coupon).exec();
+            validCoupon.usedForPurchase = true;
+            validCoupon.usageCount += 1;
+            validCoupon.usedBy.push(user._id);
+            await validCoupon.save();
+        }
+        res.json({orderId: newOrder.orderId, ok: true});
+    }
+
+
+}
+exports.createMpesaOrder = async (req, res) => {
+
+}
+
+
+async function calculateCartTotals(req, res, couponApplied) {
+    const dollar = await Dollar.findOne({});
+    const user = await User.findById(req.auth._id).exec();
+    const cart = await Cart.findOne({orderedBy: user._id}).exec();
+    const {products, coupon, totalAfterDiscount} = cart;
+    const cartTotal = calculateCartTotalInDollar(products, dollar.rate);
+
+    const {
+        finalAmount,
+        discountAmount,
+    } = await calDisAmountAndFinalAmount(cartTotal, couponApplied, totalAfterDiscount, coupon);
+    return {
+        payable: finalAmount,
+        discountAmount,
+        cartTotal: cartTotal,
+    };
+}
+
+
+exports.createPaypalOrder = async (req, res) => {
+    const {couponApplied, initial, shippingAddress, selectedPaymentMethod} = req.body;
+
+    const totals = await calculateCartTotals(req, res, couponApplied);
+    const {payable, discountAmount, cartTotal} = totals
+    if (initial) {
+       try{
+            res.json({payable: payable, cartTotal: cartTotal, discountAmount: discountAmount});
+       }catch (e) {
+
+       }
+    } else {
+
+
+        try {
+            console.log(typeof payable, typeof discountAmount, typeof cartTotal)
+            const user = await User.findById(req.auth._id).exec();
+            const populatedCart = await getCartWithProductName(user._id);
+            const {products, coupon} = populatedCart
+            const dollar = await Dollar.findOne({});
+            const today = new Date();
+            const deliveryStartDate = new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000)
+            const deliveryEndDate = new Date(today.getTime() + 10 * 24 * 60 * 60 * 1000);
+            const items = products.map(item => {
+                return {
+                    name: item.product.title || "Item",
+                    unit_amount: {
+                        currency_code: "USD",
+                        value: convertPriceToDollar(item.price, dollar.rate).toFixed(2),
+                    },
+                    quantity: item.count,
+                };
+            });
+
+            let itemTotal = calculateCartTotalInDollar(items, dollar.rate).toFixed(2);
+
+            const Environment =
+                process.env.NODE_ENV === "production"
+                    ? paypal.core.LiveEnvironment
+                    : paypal.core.SandboxEnvironment
+
+            const paypalClient = new paypal.core.PayPalHttpClient(
+                new Environment(
+                    process.env.PAYPAL_CLIENT_ID,
+                    process.env.PAYPAL_CLIENT_SECRET
+                )
+            )
+
+            const request = new paypal.orders.OrdersCreateRequest();
+            request.prefer("return=representation");
+            request.requestBody({
+                intent: "CAPTURE",
+                purchase_units: [
+                    {
+                        amount: {
+                            currency_code: "USD",
+                            value: payable,
+                            breakdown: {
+                                item_total: {
+                                    currency_code: "USD",
+                                    value: itemTotal,
+                                },
+                                discount: {
+                                    currency_code: "USD",
+                                    value: discountAmount,
+                                }
+                            },
+                        },
+                        items,
+                    },
+                ]
+            });
+            const order = await paypalClient.execute(request)
+            res.json({id: order.result.id})
+        } catch (e) {
+            console.log(e)
+            // res.status(500).json({error: e.message})
+            // console.error(e.message)
+        }
+
+
+    }
+
+
+}
+

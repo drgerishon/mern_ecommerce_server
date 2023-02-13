@@ -6,11 +6,22 @@ const OrderSchema = new mongoose.Schema(
     {
         products: [
             {
-                product: {type: ObjectId, ref: 'Product'},
-                count: Number,
+                product: {
+                    type: ObjectId,
+                    ref: 'Product',
+                    required: true,
+                },
+                count: {
+                    type: Number,
+                    required: true
+                }
+
             }
         ],
-        paymentIntent: {},
+        paymentIntentStripe: {},
+        paymentResponsePaypal: {},
+        paymentResponseMpesa: {},
+        discountAmount: Number,
         orderStatus: {
             type: String,
             enum: ["Pending", "In Progress", "Completed"],
@@ -29,6 +40,7 @@ const OrderSchema = new mongoose.Schema(
             type: Date,
             default: Date.now
         },
+
         paymentMethod: {
             type: String,
             required: true
@@ -37,16 +49,19 @@ const OrderSchema = new mongoose.Schema(
             type: Object,
             required: true
         },
-        cartTotal: {
+        totalAmountPaid: {
             type: Number,
             required: true
         },
-        darajaResponse: {},
-        taxAmount: {type: Number},
-        shippingCost: {type: Number},
-        discountAmount: {type: Number},
         shippingStatus: {type: String, default: "Not Shipped"},
-        deliveryDate: {type: Date},
+        deliveryStartDate: {
+            type: Date,
+            required: true
+        },
+        deliveryEndDate: {
+            type: Date,
+            required: true
+        },
         coupon: {
             type: ObjectId,
             ref: "Coupon",

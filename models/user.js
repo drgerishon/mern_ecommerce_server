@@ -5,6 +5,7 @@ const addressSchema = new mongoose.Schema({
     streetAddress: {
         type: String,
     },
+    place: {},
     city: {
         type: String,
     },
@@ -48,16 +49,17 @@ const userSchema = new mongoose.Schema(
             index: true,
             lowercase: true,
         },
-        phoneNumber: {
-            type: String,
-            validate: {
-                validator: function (v) {
-                    return /^(?:\+254|0)[17]\d{8}$/.test(v);
-                },
-                message: '{VALUE} is not a valid  phone number!'
-            },
-            required: [true, 'User phone number required']
-        },
+
+        // phoneNumber: {
+        //     type: String,
+        //     validate: {
+        //         validator: function (v) {
+        //             return /^(?:\+254|0)[17]\d{8}$/.test(v);
+        //         },
+        //         message: '{VALUE} is not a valid  phone number!'
+        //     },
+        //     required: [true, 'User phone number required']
+        // },
         firstName: {
             type: String,
             trim: true,
@@ -122,7 +124,7 @@ const userSchema = new mongoose.Schema(
             default: []
         },
 
-        address: [addressSchema],
+        address: {},
 
         wishlist: [{type: ObjectId, ref: "Product"}],
 

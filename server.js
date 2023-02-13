@@ -20,8 +20,12 @@ const options = {
     useNewUrlParser: true,
     useUnifiedTopology: true
 }
-//
-setInterval(controller.chooseRandomFunction, 1440000);
+const intervalInMilliseconds = 40 * 60 * 1000;
+
+
+setInterval(controller.chooseRandomFunction, intervalInMilliseconds);
+
+
 
 mongoose.set("strictQuery", false);
 mongoose.connect(process.env.DATABASE_URL, options)
@@ -40,12 +44,13 @@ app.use(bodyParser.urlencoded({limit: "2mb", extended: true}));
 //cors
 
 app.use(cors())
+
 // app.use((req, res, next) => {
 //     res.header('Access-Control-Allow-Origin', '*')
 //     res.header(
 //         'Access-Control-Allow-Headers',
 //         'Origin,X-Requested-With,Content-Type,Accept,Authorization')
-//
+
 //     if (req.method === 'OPTIONS') {
 //         res.header('Access-Control-Allow-Methods', 'PUT,PATCH,POST,OPTIONS,DELETE,GET')
 //         return res.status(200).json({})
@@ -57,9 +62,7 @@ app.use(cors())
 // port
 const port = process.env.PORT || 8000
 
-// setInterval(function () {
-//    chooseRandomFunction()
-// }, 10000);
+
 fs.readdirSync('./routes/').map(r => app.use('/api', require(`./routes/${r}`)))
 
 process.on('uncaughtException', function (exception) {
@@ -69,7 +72,7 @@ process.on('uncaughtException', function (exception) {
 });
 
 
-app.listen(port, `0.0.0.0`, () => {
+const server = app.listen(port, `0.0.0.0`, () => {
     setTimeout(() => {
         console.log(`Your backend REST api endpoint is at
            Local:            http://localhost:${port}/api
@@ -77,3 +80,6 @@ app.listen(port, `0.0.0.0`, () => {
     }, 1000);
 
 });
+
+
+require('./modules/socket').init(server);
