@@ -401,8 +401,15 @@ exports.initiatePayPal = async (req, res) => {
         request.prefer("return=representation");
         request.requestBody({
             intent: "CAPTURE",
+            application_context: {
+                brand_name: process.env.APP_NAME,
+            },
             purchase_units: [
                 {
+                    reference_id: user._id,
+                    description: `payment for ${process.env.APP_NAME}`,
+                    soft_descriptor: `${process.env.APP_NAME}`,
+
                     amount: {
                         currency_code: "USD",
                         value: payable,
@@ -475,47 +482,29 @@ exports.createStripeOrder = async (req, res) => {
         couponApplied,
         selectedPaymentMethod
     } = req.body;
+    try {
+        const user = await User.findById(req.auth._id).exec();
+        const cart = await Cart.findOne({orderedBy: user._id}).exec();
+        const {products, coupon, dollar, currencyCode, cartTotal, discountAmount} = cart;
+        const now = new Date()
+        const deliveryStartDate = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000)
+        const deliveryEndDate = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
 
-    const user = await User.findById(req.auth._id).exec();
-    const cart = await Cart.findOne({orderedBy: user._id}).populate({path: "products.product", select: "title"}).exec();
-    const {products, coupon, cartTotal, totalAfterDiscount} = cart;
-    const dollar = await Dollar.findOne({});
-
-    let finalAmount;
-    if (couponApplied && totalAfterDiscount) {
-        finalAmount = totalAfterDiscount;
-    } else {
-        finalAmount = cartTotal;
-    }
-
-    const convertAmountToCents = (amount) => {
-        return Math.round(amount * 100);
-    };
-
-    const convertedPayable = convertAmountToCents(dollar.rate * finalAmount);
-    const convertedTotalCart = convertAmountToCents(dollar.rate * cartTotal);
-    const convertedTotalAfterDiscount = convertAmountToCents(dollar.rate * totalAfterDiscount);
-
-    const today = new Date();
-    const deliveryStartDate = new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000)
-    const deliveryEndDate = new Date(today.getTime() + 10 * 24 * 60 * 60 * 1000);
-
-    if (selectedPaymentMethod === 'Card') {
         const newOrder = await new Order({
             products,
             paymentIntentStripe: paymentIntent,
             orderedBy: user._id,
+            paymentMethod: selectedPaymentMethod.toLowerCase(),
             shippingAddress,
-            deliveryStartDate,
+            totalAmountPaid: paymentIntent.amount / 100,
             deliveryEndDate,
-            paymentMethod: paymentIntent.payment_method_types[0],
-            cartTotal: convertedTotalCart,
-            totalAmountPaid: convertedPayable,
-            totalAfterDiscount: convertedTotalAfterDiscount,
-            coupon
+            currencyCode,
+            conversionRate: dollar,
+            deliveryStartDate,
+            coupon,
+            cartTotal,
+            discountAmount
         }).save();
-
-        // Decrement quantity, increment sold
         const bulkOption = products.map((item) => {
             return {
                 updateOne: {
@@ -525,7 +514,6 @@ exports.createStripeOrder = async (req, res) => {
             };
         });
         await Product.bulkWrite(bulkOption, {new: true});
-
         if (coupon) {
             const validCoupon = await Coupon.findById(coupon).exec();
             validCoupon.usedForPurchase = true;
@@ -533,12 +521,17 @@ exports.createStripeOrder = async (req, res) => {
             validCoupon.usedBy.push(user._id);
             await validCoupon.save();
         }
-        res.json({orderId: newOrder.orderId, ok: true});
+        res.json({result: paymentIntent, saved: newOrder});
+
+    } catch (err) {
+        // Handle any errors from the call
+        console.error(err);
+        return res.send(500);
     }
 
 
 }
-exports.capturePayPalPayment = async (req, res) => {
+exports.capturePayPalPaymentAndSavePaypalOrder = async (req, res) => {
     const {orderId, selectedPaymentMethod, shippingAddress} = req.body;
     const request = new paypal.orders.OrdersCaptureRequest(orderId);
     request.requestBody({});
@@ -548,8 +541,7 @@ exports.capturePayPalPayment = async (req, res) => {
         const {products, coupon, dollar, currencyCode, cartTotal, discountAmount} = cart;
 
         const capture = await paypalClient.execute(request);
-        console.log(`Response: ${JSON.stringify(capture, null, 4)}`);
-        console.log(`Capture: ${JSON.stringify(capture.result, null, 4)}`);
+
         const result = capture.result;
         //SAVE ORDER TO DB
         if (result) {
@@ -564,6 +556,7 @@ exports.capturePayPalPayment = async (req, res) => {
                 shippingAddress,
                 totalAmountPaid: result.purchase_units[0].payments.captures[0].amount.value,
                 deliveryEndDate,
+                currencyCode,
                 conversionRate: dollar,
                 deliveryStartDate,
                 coupon,

@@ -23,18 +23,21 @@ exports.createPaymentIntent = async (req, res) => {
         let stripeClientSecret
         let paypalClientSecret
         if (selectedPaymentMethod === 'Card') {
+            payable = convertAmountToCents(payable);
             try {
                 paymentIntent = await stripe.paymentIntents.create({
                     amount: payable,
                     currency: 'USD',
                     payment_method: 'pm_card_visa',
                 })
-                payable = convertAmountToCents(payable);
                 stripeClientSecret = paymentIntent.client_secret
             } catch (e) {
                 console.log(e)
             }
 
+        }
+        if (selectedPaymentMethod === 'Card') {
+            payable = payable / 100;
         }
 
         if (selectedPaymentMethod === 'Paypal') {
@@ -51,7 +54,6 @@ exports.createPaymentIntent = async (req, res) => {
             }
 
         }
-
         res.send({
             stripeClientSecret,
             paypalClientSecret,

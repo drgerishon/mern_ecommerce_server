@@ -9,7 +9,7 @@ const {
     initiateMpesaOrder,
     getMpesaDetails,
     initiatePayPal,
-    capturePayPalPayment,
+    capturePayPalPaymentAndSavePaypalOrder,
     createStripeOrder,
     createMpesaOrder,
     applyCouponToUserCart,
@@ -34,7 +34,7 @@ router.post('/user/address', requireSignin, authCheck, saveAddress)
 
 router.post('/user/cart/coupon', requireSignin, authCheck, applyCouponToUserCart)
 router.post('/user/init-paypal-order', requireSignin, authCheck, initiatePayPal)
-router.post('/user/capture-paypal-payment', requireSignin, authCheck, capturePayPalPayment)
+router.post('/user/capture-paypal-payment-and-save-order', requireSignin, authCheck, capturePayPalPaymentAndSavePaypalOrder)
 
 router.post('/user/stripe-order', requireSignin, authCheck, createStripeOrder)
 

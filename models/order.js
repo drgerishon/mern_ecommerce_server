@@ -40,7 +40,10 @@ const OrderSchema = new mongoose.Schema(
             type: Date,
             default: Date.now
         },
-
+        currencyCode: {
+            type: String,
+            default: 'KES'
+        },
         paymentMethod: {
             type: String,
             required: true
