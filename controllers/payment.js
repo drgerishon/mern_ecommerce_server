@@ -7,59 +7,67 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET)
 const paypal = require('paypal-rest-sdk');
 const Dollar = require("../models/dollar");
 const socketIO = require("../modules/socket");
-
+const {calculateCartTotalInDollar, calDisAmountAndFinalAmount} = require("../helpers/cart");
+const {calculateCartTotals} = require("../helpers/calculateCartTotals");
 
 
 exports.createPaymentIntent = async (req, res) => {
-    const {couponApplied, selectedPaymentMethod} = req.body;
-    const user = await User.findById(req.auth._id).exec();
-    const cart = await Cart.findOne({orderedBy: user._id}).exec();
-    const dollar = await Dollar.findOne({});
+    try {
+        const {couponApplied, selectedPaymentMethod} = req.body;
+        const totals = await calculateCartTotals(req, res, couponApplied);
+        let {payable, discountAmount, totalAfterDiscount, cartTotal} = totals
+        const convertAmountToCents = (amount) => {
+            return Math.round(amount * 100);
+        };
+        let paymentIntent
+        let stripeClientSecret
+        let paypalClientSecret
+        if (selectedPaymentMethod === 'Card') {
+            try {
+                paymentIntent = await stripe.paymentIntents.create({
+                    amount: payable,
+                    currency: 'USD',
+                    payment_method: 'pm_card_visa',
+                })
+                payable = convertAmountToCents(payable);
+                stripeClientSecret = paymentIntent.client_secret
+            } catch (e) {
+                console.log(e)
+            }
 
-    const {cartTotal, totalAfterDiscount} = cart;
-    let finalAmount;
-    if (couponApplied && totalAfterDiscount) {
-        finalAmount = totalAfterDiscount;
-    } else {
-        finalAmount = cartTotal;
+        }
+
+        if (selectedPaymentMethod === 'Paypal') {
+            paypalClientSecret = process.env.PAYPAL_CLIENT_ID;
+
+        }
+        if (selectedPaymentMethod === 'Mpesa') {
+            if (couponApplied && totalAfterDiscount) {
+                payable = totalAfterDiscount
+                discountAmount = cartTotal - totalAfterDiscount
+            } else {
+                payable = cartTotal
+                discountAmount = 0
+            }
+
+        }
+
+        res.send({
+            stripeClientSecret,
+            paypalClientSecret,
+            cartTotal,
+            totalAfterDiscount,
+            discountAmount,
+            payable,
+        })
+    } catch (e) {
+        console.log(e)
     }
-
-    const convertAmountToCents = (amount) => {
-        return Math.round(amount * 100);
-    };
-
-    const convertedPayable = convertAmountToCents(dollar.rate * finalAmount);
-    const convertedTotalCart = convertAmountToCents(dollar.rate * cartTotal);
-    const convertedTotalAfterDiscount = convertAmountToCents(dollar.rate * totalAfterDiscount);
-
-    const paymentIntent =
-        selectedPaymentMethod === 'Card' &&
-        (await stripe.paymentIntents.create({
-            amount: convertedPayable,
-            currency: 'USD',
-            payment_method: 'pm_card_visa',
-        }));
-
-    const stripeClientSecret =
-        selectedPaymentMethod === 'Card' && paymentIntent.client_secret;
-    const paypalClientSecret =
-        selectedPaymentMethod === 'Paypal' && process.env.PAYPAL_CLIENT_ID;
-
-    res.send({
-        stripeClientSecret,
-        paypalClientSecret,
-        cartTotal,
-        convertedTotalAfterDiscount,
-        convertedPayable,
-        convertedTotalCart,
-        totalAfterDiscount,
-        payable: finalAmount,
-    });
 };
 
 
 exports.lipaNaMpesaOnlineCallback = async = (req, res) => {
-const io = socketIO.getIO();
+    const io = socketIO.getIO();
     const transactionDetails = req.body
     const {
         ResultCode,

@@ -13,12 +13,18 @@ const cartSchema = new mongoose.Schema(
         ],
         cartTotal: Number,
         totalAfterDiscount: {
-            type:Number
+            type: Number
         },
+        discountAmount: Number,
         orderedBy: {type: ObjectId, ref: 'User'},
         // customerLocation: {
         //     type: String,
         // },
+        dollar: {},
+        currencyCode: {
+            type: String,
+            default: 'KES'
+        },
         coupon: {
             type: ObjectId,
             ref: "Coupon"

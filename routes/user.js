@@ -8,7 +8,8 @@ const {
     createOrder,
     initiateMpesaOrder,
     getMpesaDetails,
-    createPaypalOrder,
+    initiatePayPal,
+    capturePayPalPayment,
     createStripeOrder,
     createMpesaOrder,
     applyCouponToUserCart,
@@ -16,7 +17,7 @@ const {
     addToWishList,
     wishList,
     removeFromWishlist,
-    creatCashOrder
+    creatCashOrder,
 } = require('../controllers/user')
 const router = express.Router()
 
@@ -32,8 +33,9 @@ router.post('/user/address', requireSignin, authCheck, saveAddress)
 // router.get('/user/orders', requireSignin, authCheck, orders)
 
 router.post('/user/cart/coupon', requireSignin, authCheck, applyCouponToUserCart)
-router.post('/user/paypal-order', requireSignin, authCheck, createPaypalOrder)
-router.post('/user/mpesa-order', requireSignin, authCheck, createMpesaOrder)
+router.post('/user/init-paypal-order', requireSignin, authCheck, initiatePayPal)
+router.post('/user/capture-paypal-payment', requireSignin, authCheck, capturePayPalPayment)
+
 router.post('/user/stripe-order', requireSignin, authCheck, createStripeOrder)
 
 

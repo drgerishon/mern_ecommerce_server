@@ -28,6 +28,7 @@ function calculatePayableAmount(total, discount) {
 }
 
 exports.calDisAmountAndFinalAmount = async (cartTotal, couponApplied, totalAfterDiscount, coupon) => {
+
     let finalAmount;
     let discountAmount;
     if (couponApplied && totalAfterDiscount && coupon) {
@@ -59,37 +60,6 @@ exports.calDisAmountAndFinalAmount = async (cartTotal, couponApplied, totalAfter
 }
 
 
-// exports.calDisAmountAndFinalAmount = async (cartTotal, couponApplied, totalAfterDiscount, coupon) => {
-//     let finalAmount;
-//     let discountAmount;
-//     if (couponApplied && totalAfterDiscount && coupon) {
-//         const validCoupon = await Coupon.findById(coupon).exec();
-//         if (!validCoupon) {
-//             throw new Error("Invalid coupon code");
-//         }
-//         //cart total
-//         const cartTotalToBig = new Big(cartTotal);
-//         //discount amount from db
-//         const discount = new Big(validCoupon.discount);
-//         //convert discount to percentage
-//         const percentageDiscount = discount.div(100);
-//         //DiscountedPrice multiply by total
-//         const discountedTotal = cartTotalToBig.mul(percentageDiscount);
-//         //Final amount paid including discount
-//         finalAmount = cartTotalToBig.minus(discountedTotal).valueOf();
-//         //actual discount charged
-//         discountAmount = discountedTotal.valueOf();
-//
-//     } else {
-//         finalAmount = new Big(cartTotal).valueOf();
-//         discountAmount = new Big(0).valueOf();
-//     }
-//
-//     return {
-//         finalAmount: Number(finalAmount),
-//         discountAmount: Number(discountAmount)
-//     };
-// };
 
 
 exports.calculateCartTotal = (products) => {

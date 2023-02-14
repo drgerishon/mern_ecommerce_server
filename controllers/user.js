@@ -21,7 +21,20 @@ const {
     getCartWithProductName, retrieveShippingAddress
 } = require("../helpers/cart");
 const {convertPriceToDollar} = require("../helpers/priceToDollar");
+const {calculateCartTotals} = require("../helpers/calculateCartTotals");
 
+
+const Environment =
+    process.env.NODE_ENV === "production"
+        ? paypal.core.LiveEnvironment
+        : paypal.core.SandboxEnvironment
+
+const paypalClient = new paypal.core.PayPalHttpClient(
+    new Environment(
+        process.env.PAYPAL_CLIENT_ID,
+        process.env.PAYPAL_CLIENT_SECRET
+    )
+)
 
 exports.userCart = async (req, res) => {
     const {cart} = req.body
@@ -224,30 +237,38 @@ exports.createOrder = async (req, res) => {
         request.prefer("return=representation")
         request.requestBody({
             intent: "CAPTURE",
-            purchase_units: [
-                {
-                    amount: {
-                        currency_code: "USD",
-                        value: finalAmount,
-                        breakdown: {
-                            item_total: {
-                                currency_code: "USD",
-                                value: finalAmount,
-                            },
+            application_context: {
+                brand_name: "myFarm",
+                landing_page: "BILLING",
+                user_action: "CONTINUE",
+            },
+            purchase_units: [{
+                reference_id: user._id,
+                description: "payment for XY company",
+                soft_descriptor: "Jewlery Fashion",
+
+                amount: {
+                    currency_code: "USD",
+                    value: finalAmount,
+                    breakdown: {
+                        item_total: {
+                            currency_code: "USD",
+                            value: finalAmount,
                         },
                     },
-                    items: products.map(item => {
-                        console.log(item.price)
-                        return {
-                            name: item.product.title,
-                            unit_amount: {
-                                currency_code: "USD",
-                                value: item.price,
-                            },
-                            quantity: item.count,
-                        }
-                    }),
                 },
+                items: products.map(item => {
+                    console.log(item.price)
+                    return {
+                        name: item.product.title,
+                        unit_amount: {
+                            currency_code: "USD",
+                            value: item.price,
+                        },
+                        quantity: item.count,
+                    }
+                }),
+            },
             ]
         })
 
@@ -288,7 +309,9 @@ exports.createOrder = async (req, res) => {
             };
         });
         await Product.bulkWrite(bulkOption, {new: true});
-
+        const today = new Date();
+        const deliveryStartDate = new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000)
+        const deliveryEndDate = new Date(today.getTime() + 10 * 24 * 60 * 60 * 1000);
         if (coupon) {
             const validCoupon = await Coupon.findById(coupon).exec();
             validCoupon.usedForPurchase = true;
@@ -296,7 +319,6 @@ exports.createOrder = async (req, res) => {
             validCoupon.usedBy.push(user._id);
             await validCoupon.save();
         }
-        ;
 
 
     }
@@ -354,7 +376,59 @@ exports.initiateMpesaOrder = async (req, res) => {
     }
 
 }
+exports.initiatePayPal = async (req, res) => {
+    const {couponApplied, selectedPaymentMethod} = req.body;
+    const totals = await calculateCartTotals(req, res, couponApplied);
+    let {payable, discountAmount, totalAfterDiscount, cartTotal} = totals
+    try {
+        const user = await User.findById(req.auth._id).exec();
+        const populatedCart = await getCartWithProductName(user._id);
+        const {products} = populatedCart
+        const dollar = await Dollar.findOne({});
+        const items = products.map(item => {
+            return {
+                name: item.product.title || "Item",
+                unit_amount: {
+                    currency_code: "USD",
+                    value: convertPriceToDollar(item.price, dollar.rate).toFixed(2),
+                },
+                quantity: item.count,
+            };
+        });
+        let itemTotal = calculateCartTotalInDollar(items, dollar.rate).toFixed(2);
 
+        const request = new paypal.orders.OrdersCreateRequest();
+        request.prefer("return=representation");
+        request.requestBody({
+            intent: "CAPTURE",
+            purchase_units: [
+                {
+                    amount: {
+                        currency_code: "USD",
+                        value: payable,
+                        breakdown: {
+                            item_total: {
+                                currency_code: "USD",
+                                value: itemTotal,
+                            },
+                            discount: {
+                                currency_code: "USD",
+                                value: discountAmount,
+                            }
+                        },
+                    },
+                    items,
+                },
+            ]
+        });
+        const order = await paypalClient.execute(request)
+        res.json({id: order.result.id})
+
+    } catch (e) {
+        res.status(500).json({error: e.message})
+        console.error(e.message)
+    }
+}
 exports.getMpesaDetails = async (req, res) => {
     const url = 'https://sandbox.safaricom.co.ke/mpesa/stkpushquery/v1/query'
     const shortCode = process.env.SAFARICOM_SHORT_CODE;
@@ -464,113 +538,67 @@ exports.createStripeOrder = async (req, res) => {
 
 
 }
-exports.createMpesaOrder = async (req, res) => {
+exports.capturePayPalPayment = async (req, res) => {
+    const {orderId, selectedPaymentMethod, shippingAddress} = req.body;
+    const request = new paypal.orders.OrdersCaptureRequest(orderId);
+    request.requestBody({});
+    try {
+        const user = await User.findById(req.auth._id).exec();
+        const cart = await Cart.findOne({orderedBy: user._id}).exec();
+        const {products, coupon, dollar, currencyCode, cartTotal, discountAmount} = cart;
 
-}
-
-
-async function calculateCartTotals(req, res, couponApplied) {
-    const dollar = await Dollar.findOne({});
-    const user = await User.findById(req.auth._id).exec();
-    const cart = await Cart.findOne({orderedBy: user._id}).exec();
-    const {products, coupon, totalAfterDiscount} = cart;
-    const cartTotal = calculateCartTotalInDollar(products, dollar.rate);
-
-    const {
-        finalAmount,
-        discountAmount,
-    } = await calDisAmountAndFinalAmount(cartTotal, couponApplied, totalAfterDiscount, coupon);
-    return {
-        payable: finalAmount,
-        discountAmount,
-        cartTotal: cartTotal,
-    };
-}
-
-
-exports.createPaypalOrder = async (req, res) => {
-    const {couponApplied, initial, shippingAddress, selectedPaymentMethod} = req.body;
-
-    const totals = await calculateCartTotals(req, res, couponApplied);
-    const {payable, discountAmount, cartTotal} = totals
-    if (initial) {
-       try{
-            res.json({payable: payable, cartTotal: cartTotal, discountAmount: discountAmount});
-       }catch (e) {
-
-       }
-    } else {
+        const capture = await paypalClient.execute(request);
+        console.log(`Response: ${JSON.stringify(capture, null, 4)}`);
+        console.log(`Capture: ${JSON.stringify(capture.result, null, 4)}`);
+        const result = capture.result;
+        //SAVE ORDER TO DB
+        if (result) {
+            const now = new Date()
+            const deliveryStartDate = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000)
+            const deliveryEndDate = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
+            const newOrder = await new Order({
+                products,
+                paymentResponsePaypal: result,
+                orderedBy: user._id,
+                paymentMethod: selectedPaymentMethod.toLowerCase(),
+                shippingAddress,
+                totalAmountPaid: result.purchase_units[0].payments.captures[0].amount.value,
+                deliveryEndDate,
+                conversionRate: dollar,
+                deliveryStartDate,
+                coupon,
+                cartTotal,
+                discountAmount
+            }).save();
 
 
-        try {
-            console.log(typeof payable, typeof discountAmount, typeof cartTotal)
-            const user = await User.findById(req.auth._id).exec();
-            const populatedCart = await getCartWithProductName(user._id);
-            const {products, coupon} = populatedCart
-            const dollar = await Dollar.findOne({});
-            const today = new Date();
-            const deliveryStartDate = new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000)
-            const deliveryEndDate = new Date(today.getTime() + 10 * 24 * 60 * 60 * 1000);
-            const items = products.map(item => {
+            // Decrement quantity, increment sold
+            const bulkOption = products.map((item) => {
                 return {
-                    name: item.product.title || "Item",
-                    unit_amount: {
-                        currency_code: "USD",
-                        value: convertPriceToDollar(item.price, dollar.rate).toFixed(2),
+                    updateOne: {
+                        filter: {_id: item.product._id},
+                        update: {$inc: {quantity: -item.count, sold: item.count}},
                     },
-                    quantity: item.count,
                 };
             });
-
-            let itemTotal = calculateCartTotalInDollar(items, dollar.rate).toFixed(2);
-
-            const Environment =
-                process.env.NODE_ENV === "production"
-                    ? paypal.core.LiveEnvironment
-                    : paypal.core.SandboxEnvironment
-
-            const paypalClient = new paypal.core.PayPalHttpClient(
-                new Environment(
-                    process.env.PAYPAL_CLIENT_ID,
-                    process.env.PAYPAL_CLIENT_SECRET
-                )
-            )
-
-            const request = new paypal.orders.OrdersCreateRequest();
-            request.prefer("return=representation");
-            request.requestBody({
-                intent: "CAPTURE",
-                purchase_units: [
-                    {
-                        amount: {
-                            currency_code: "USD",
-                            value: payable,
-                            breakdown: {
-                                item_total: {
-                                    currency_code: "USD",
-                                    value: itemTotal,
-                                },
-                                discount: {
-                                    currency_code: "USD",
-                                    value: discountAmount,
-                                }
-                            },
-                        },
-                        items,
-                    },
-                ]
-            });
-            const order = await paypalClient.execute(request)
-            res.json({id: order.result.id})
-        } catch (e) {
-            console.log(e)
-            // res.status(500).json({error: e.message})
-            // console.error(e.message)
+            await Product.bulkWrite(bulkOption, {new: true});
+            if (coupon) {
+                const validCoupon = await Coupon.findById(coupon).exec();
+                validCoupon.usedForPurchase = true;
+                validCoupon.usageCount += 1;
+                validCoupon.usedBy.push(user._id);
+                await validCoupon.save();
+            }
+            res.json({result, saved: newOrder});
         }
-
-
+        // return capture.result;
+    } catch (err) {
+        // Handle any errors from the call
+        console.error(err);
+        return res.send(500);
     }
 
-
 }
+
+
 

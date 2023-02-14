@@ -12,6 +12,7 @@ const RandomFunction = require("./helpers/currency-converter");
 const {chooseRandomFunction} = require("./helpers/currency-converter");
 const controller = require("./controllers/dollar");
 
+
 const app = express()
 
 //db
@@ -21,6 +22,7 @@ const options = {
     useUnifiedTopology: true
 }
 const intervalInMilliseconds = 40 * 60 * 1000;
+// const intervalInMilliseconds = 10000;
 
 
 setInterval(controller.chooseRandomFunction, intervalInMilliseconds);

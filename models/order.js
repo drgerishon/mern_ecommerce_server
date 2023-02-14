@@ -62,6 +62,7 @@ const OrderSchema = new mongoose.Schema(
             type: Date,
             required: true
         },
+        conversionRate: {},
         coupon: {
             type: ObjectId,
             ref: "Coupon",
