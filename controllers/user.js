@@ -149,6 +149,58 @@ exports.saveAddress = async (req, res) => {
 exports.verifyTokenController = (req, res) => {
     res.sendStatus(200);
 }
+exports.orders = async (req, res) => {
+    const user = await User.findById(req.auth._id).exec()
+    const userOrders = await Order.find({orderedBy: user._id})
+        .select("-shippingAddress -coupon -conversionRate -products")
+        .populate('products.product')
+        .exec()
+
+    let orderArray = []
+    userOrders.map(order => {
+        let paymentStatus
+        if (order.paymentMethod === 'card') {
+            paymentStatus = order.paymentIntentStripe.status
+        }
+        if (order.paymentMethod === 'paypal') {
+            paymentStatus = order.paymentResponsePaypal.status
+        }
+
+        orderArray.push(
+            {
+                orderId: order.orderId,
+                amount: order.totalAmountPaid,
+                currencyCode: order.currencyCode,
+                paymentMethod: order.paymentMethod,
+                paymentStatus: paymentStatus,
+                orderDate: order.orderDate,
+                orderStatus: order.orderStatus
+            },
+        )
+    })
+    console.log(JSON.stringify(orderArray, null, 4))
+    res.json(orderArray)
+
+
+}
+exports.addToWishList = async (req, res) => {
+    const {productId} = req.body
+    await User.findByIdAndUpdate(req.auth._id, {$addToSet: {wishlist: productId}}).exec()
+    res.json({ok: true})
+
+
+}
+exports.wishList = async (req, res) => {
+    const list = await User.findById(req.auth._id).select('wishlist').populate('wishlist').exec()
+    res.json(list)
+
+}
+
+exports.removeFromWishlist = async (req, res) => {
+    const {productId} = req.params
+    await User.findByIdAndUpdate(req.auth._id, {$pull: {wishlist: productId}}).exec()
+    res.json({ok: true})
+}
 exports.applyCouponToUserCart = async (req, res) => {
     const {coupon, couponUsed} = req.body
     if (couponUsed === false) {
