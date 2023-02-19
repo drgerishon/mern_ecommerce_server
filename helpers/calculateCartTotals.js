@@ -12,8 +12,6 @@ exports.calculateCartTotals = async (req, res, couponApplied) => {
         totalAfterDiscount = 0
     }
     const cartTotal = calculateCartTotalInDollar(products, dollar.rate);
-
-
     const {
         finalAmount,
         discountAmount,
@@ -21,10 +19,9 @@ exports.calculateCartTotals = async (req, res, couponApplied) => {
 
     await Cart.updateOne({orderedBy: user._id}, {
         $set: {
-            totalAfterDiscount: totalAfterDiscount.toFixed(2),
-            cartTotal: cartTotal.toFixed(2),
-            discountAmount: discountAmount.toFixed(2),
-            coupon: coupon,
+            totalAfterDiscountUSD: totalAfterDiscount.toFixed(2),
+            cartTotalUSD: cartTotal.toFixed(2),
+            discountAmountUSD: discountAmount.toFixed(2),
             dollar,
             currencyCode: "USD",
         }

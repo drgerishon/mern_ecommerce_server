@@ -10,5 +10,5 @@ const current_timestamp = () => {
 };
 
 module.exports = {
-    timestamp: current_timestamp()
+    current_timestamp: current_timestamp
 };

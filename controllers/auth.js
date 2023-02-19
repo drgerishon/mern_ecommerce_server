@@ -9,7 +9,6 @@ const sgMail = require("@sendgrid/mail");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 exports.currentUser = async (req, res) => {
-
     const email = req.body
     User.findOne({email}).exec((err, user) => {
         if (err) {

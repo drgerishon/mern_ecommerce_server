@@ -1,8 +1,7 @@
 const Big = require('big.js');
-
+const Cart = require("../models/cart");
 const Coupon = require("../models/coupon");
 const {convertPriceToDollar} = require("./priceToDollar");
-const Cart = require("../models/cart");
 const axios = require("axios");
 
 function calculatePayableAmount(total, discount) {
@@ -26,9 +25,7 @@ function calculatePayableAmount(total, discount) {
 
     return payable.toFixed(2);
 }
-
 exports.calDisAmountAndFinalAmount = async (cartTotal, couponApplied, totalAfterDiscount, coupon) => {
-
     let finalAmount;
     let discountAmount;
     if (couponApplied && totalAfterDiscount && coupon) {
@@ -58,19 +55,6 @@ exports.calDisAmountAndFinalAmount = async (cartTotal, couponApplied, totalAfter
         discountAmount: Number(discountAmount)
     };
 }
-
-
-
-
-exports.calculateCartTotal = (products) => {
-    let cartTotal = new Big(0);
-    for (let i = 0; i < products.length; i++) {
-        cartTotal = cartTotal.plus(new Big(products[i].price).times(products[i].count));
-    }
-    return Number(cartTotal.valueOf());
-};
-
-
 exports.calculateCartTotalInDollar = (products, dollarRate) => {
     let cartTotal = new Big(0);
     for (let i = 0; i < products.length; i++) {
@@ -84,14 +68,11 @@ exports.calculateCartTotalInDollar = (products, dollarRate) => {
     }
     return Number(cartTotal.valueOf());
 };
-
-
 exports.getCartWithProductName = async (userId) => {
     return await Cart.findOne({orderedBy: userId})
         .populate('products.product')
         .exec();
 }
-
 
 exports.retrieveShippingAddress = (placeId) => {
 

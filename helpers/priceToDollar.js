@@ -1,7 +1,6 @@
 const Big = require("big.js");
 
 exports.convertPriceToDollar = (price, dollarRate) => {
-
     if (!price || typeof price !== 'number' || price <= 0) {
         throw new Error("Invalid item price");
     }

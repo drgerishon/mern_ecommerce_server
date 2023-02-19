@@ -56,7 +56,7 @@ const productSchema = new mongoose.Schema(
         },
         shipping: {
             type: String,
-            enum: ["Yes", "No"]
+            enum: ['Yes', 'No']
         },
 
         postedBy: {

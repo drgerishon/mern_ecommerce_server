@@ -15,7 +15,6 @@ exports.getOAuthToken = async (req, res, next) => {
         )
         .then((response) => {
             req.daraja = response.data;
-            console.log(response.data)
             next();
         })
         .catch((err) => {

@@ -17,7 +17,7 @@ router.post('/create-payment-intent-stripe', requireSignin, authCheck, createPay
 router.post('/create-payment-daraja', requireSignin, authCheck, createPaymentIntent)
 //mpesa
 // router.post('/daraja-create-payment-intent', requireSignin, authCheck, getOAuthToken, createPaymentIntent)
-router.post('/callback%7D', lipaNaMpesaOnlineCallback)
+router.post('/safaricom', lipaNaMpesaOnlineCallback)
 // router.post('/lipa-na-mpesa-trace', getOAuthToken, lipaNaMpesaTrace)
 
 
