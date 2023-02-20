@@ -152,6 +152,7 @@ exports.signupByAdmin = (req, res) => {
 exports.signin = (req, res) => {
 
     const {email, password} = req.body;
+
     // check if user exist
     User.findOne({email}).exec((err, user) => {
         if (err || !user) {
@@ -167,6 +168,8 @@ exports.signin = (req, res) => {
         }
         // generate a token and send to client
         const token = jwt.sign({_id: user._id}, process.env.JWT_SECRET, {expiresIn: '1d'});
+
+        console.log(token)
 
         res.cookie('token', token, {expiresIn: '1d'});
 
@@ -185,7 +188,6 @@ exports.signout = (req, res) => {
 
 
 exports.forgotPassword = (req, res) => {
-
 
     const {email} = req.body;
     User.findOne({email}, (err, user) => {

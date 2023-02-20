@@ -152,7 +152,7 @@ exports.verifyTokenController = (req, res) => {
 exports.orders = async (req, res) => {
     const user = await User.findById(req.auth._id).exec()
     const userOrders = await Order.find({orderedBy: user._id})
-        .select("-shippingAddress -coupon -conversionRate -products")
+        .select("-shippingAddress -coupon -conversionRate ")
         .populate('products.product')
         .exec()
 
@@ -169,7 +169,10 @@ exports.orders = async (req, res) => {
         orderArray.push(
             {
                 orderId: order.orderId,
+                _id: order._id,
+                products: order.products,
                 amount: order.totalAmountPaid,
+                shippingStatus: order.shippingStatus,
                 currencyCode: order.currencyCode,
                 paymentMethod: order.paymentMethod,
                 paymentStatus: paymentStatus,
