@@ -93,10 +93,10 @@ exports.emptyCart = async (req, res) => {
 
 }
 exports.saveAddress = async (req, res) => {
-    const {place, address} = req.body
-    const {streetAddress, city, state, zipCode, country, name, lat, lng, googlePlaceId} = address
+    const {place, address} = req.body;
+    const {streetAddress, city, state, zipCode, country, name, lat, lng, googlePlaceId} = address;
 
-    console.log('PLACE', place)
+    console.log('PLACE', place);
 
     try {
         const newAddress = {
@@ -117,35 +117,40 @@ exports.saveAddress = async (req, res) => {
         if (!user) {
             return res.status(400).json({msg: 'User not found'});
         }
+
+        let userAddresses = user.address;
+        if (!userAddresses) {
+            userAddresses = [];
+        }
+
         let addressIndex = -1;
-        user.address.forEach((address, index) => {
-            if (googlePlaceId === newAddress.googlePlaceId) {
+        userAddresses.forEach((address, index) => {
+            if (googlePlaceId === address.googlePlaceId) {
                 addressIndex = index;
             }
         });
 
         if (addressIndex === -1) {
-            await User.updateOne({_id: userId}, {$push: {address: newAddress, place}}, {new: true});
+            if (userAddresses.length >= 3) {
+                userAddresses.shift();
+            }
+            userAddresses.push(newAddress);
         } else {
-            user.address[addressIndex].streetAddress = newAddress.streetAddress;
-            user.address[addressIndex].city = newAddress.city;
-            user.address[addressIndex].place = newAddress.place;
-            user.address[addressIndex].lat = newAddress.lat;
-            user.address[addressIndex].lng = newAddress.lng;
-            user.address[addressIndex].state = newAddress.state;
-            user.address[addressIndex].zipCode = newAddress.zipCode;
-            user.address[addressIndex].country = newAddress.country;
-            user.address[addressIndex].googlePlaceId = newAddress.googlePlaceId;
-            await user.save();
+            userAddresses[addressIndex] = newAddress;
         }
+
+        user.address = userAddresses;
+        await user.save();
+
         const updatedUser = await User.findOne({_id: userId}).sort({updatedAt: -1}).exec();
         res.status(200).json({ok: true, address: updatedUser.address});
     } catch (error) {
         console.error(error.message);
         res.status(500).send('Server Error');
     }
+};
 
-}
+
 exports.verifyTokenController = (req, res) => {
     res.sendStatus(200);
 }
