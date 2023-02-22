@@ -1,7 +1,7 @@
 const Sub = require('../models/sub')
 const slugify = require("slugify");
 const {errorHandler} = require("../helpers/dbErrorHandler")
-// const Product = require("../models/product");
+const Product = require("../models/product");
 const Category = require("../models/category")
 
 
@@ -33,11 +33,10 @@ exports.read = async (req, res) => {
     const parent = await Category.findById(sub.parent)
 
 
-    //
-    // const products = await Product.find({subs: sub})
-    //     .populate('category')
-    //     .exec()
-    res.json({sub, parent})
+    const products = await Product.find({subs: sub})
+        .populate('category')
+        .exec()
+    res.json({sub, parent, products})
 };
 
 exports.update = async (req, res) => {

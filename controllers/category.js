@@ -1,6 +1,6 @@
 const Category = require('../models/category')
 const Sub = require('../models/sub')
-// const Product = require('../models/product')
+const Product = require('../models/product')
 const slugify = require("slugify");
 const {errorHandler} = require("../helpers/dbErrorHandler")
 
@@ -24,15 +24,17 @@ exports.read = async (req, res) => {
     const slug = req.params.slug.toLowerCase();
 
     let category = await Category.findOne({slug}).exec();
+    const catId = category._id
 
+    const products = await Product.find({category: catId})
+        .populate('category')
+        .populate('postedBy', '_id name')
+        .exec()
 
-    // const products = await Product.find({category})
-    //     .populate('category')
-    //     .populate('postedBy', '_id name')
-    //     .exec()
-    //
-    // res.json({category, products})
-    res.json({category})
+    console.log(products)
+
+    res.json({category, products})
+
 };
 
 exports.update = async (req, res) => {
