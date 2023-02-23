@@ -5,7 +5,6 @@ const {
     getUserCart,
     orders,
     emptyCart,
-    createOrder,
     initiateMpesaOrder,
     getMpesaDetails,
     initiatePayPal,
@@ -38,7 +37,7 @@ router.get('/user/orders', requireSignin, authCheck, orders)
 router.post('/user/cart/coupon', requireSignin, authCheck, applyCouponToUserCart)
 router.post('/user/init-paypal-order', requireSignin, authCheck, initiatePayPal)
 router.post('/user/capture-paypal-payment-and-save-order', requireSignin, authCheck, capturePayPalPaymentAndSavePaypalOrder)
-
+router.post('/mpesa/callback', createMpesaOrder)
 router.post('/user/stripe-order', requireSignin, authCheck, createStripeOrder)
 
 

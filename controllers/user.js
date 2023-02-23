@@ -71,7 +71,6 @@ exports.userCart = async (req, res) => {
     // console.log(JSON.stringify(savedCart, null, 4))
 
 }
-
 exports.getUserCart = async (req, res) => {
     const user = await User.findById(req.auth._id).exec()
     const cart = await Cart.findOne({orderedBy: user._id})
@@ -95,9 +94,6 @@ exports.emptyCart = async (req, res) => {
 exports.saveAddress = async (req, res) => {
     const {place, address} = req.body;
     const {streetAddress, city, state, zipCode, country, name, lat, lng, googlePlaceId} = address;
-
-    console.log('PLACE', place);
-
     try {
         const newAddress = {
             streetAddress,
@@ -149,30 +145,31 @@ exports.saveAddress = async (req, res) => {
         res.status(500).send('Server Error');
     }
 };
-
-
 exports.verifyTokenController = (req, res) => {
     res.sendStatus(200);
 }
+
+
 exports.orders = async (req, res) => {
     const user = await User.findById(req.auth._id).exec()
     const userOrders = await Order.find({orderedBy: user._id})
         .select("-shippingAddress -coupon -conversionRate ")
         .populate('products.product')
         .exec()
-
     let orderArray = []
     userOrders.map(order => {
-        let paymentStatus
+        let paymentStatus = null
+
         if (order.paymentMethod === 'card') {
             paymentStatus = order.paymentIntentStripe.status
-        }
-        if (order.paymentMethod === 'paypal') {
+        } else if (order.paymentMethod === 'paypal') {
             paymentStatus = order.paymentResponsePaypal.status
+        } else if (order.paymentMethod === 'mpesa' && order.paymentResponseMpesa.status === 'Success') {
+            paymentStatus = order.paymentResponseMpesa.status
         }
 
-        orderArray.push(
-            {
+        if (paymentStatus !== null) {
+            orderArray.push({
                 orderId: order.orderId,
                 _id: order._id,
                 products: order.products,
@@ -183,14 +180,15 @@ exports.orders = async (req, res) => {
                 paymentStatus: paymentStatus,
                 orderDate: order.orderDate,
                 orderStatus: order.orderStatus
-            },
-        )
+            })
+        }
     })
+
     console.log(JSON.stringify(orderArray, null, 4))
     res.json(orderArray)
-
-
 }
+
+
 exports.addToWishList = async (req, res) => {
     const {productId} = req.body
     await User.findByIdAndUpdate(req.auth._id, {$addToSet: {wishlist: productId}}).exec()
@@ -203,7 +201,6 @@ exports.wishList = async (req, res) => {
     res.json(list)
 
 }
-
 exports.removeFromWishlist = async (req, res) => {
     const {productId} = req.params
     await User.findByIdAndUpdate(req.auth._id, {$pull: {wishlist: productId}}).exec()
@@ -245,145 +242,102 @@ exports.applyCouponToUserCart = async (req, res) => {
 
 
 }
-
-
-exports.createOrder = async (req, res) => {
+exports.createMpesaOrder = async (req, res) => {
     const {
-        shippingAddress,
-        shippingCost,
-        paymentIntent,
-        couponApplied,
-        selectedPaymentMethod
-    } = req.body;
+        MerchantRequestID,
+        CheckoutRequestID,
+        ResultCode,
+        ResultDesc,
+        CallbackMetadata
+    } = req.body.Body.stkCallback;
 
-    const user = await User.findById(req.auth._id).exec();
-    const cart = await Cart.findOne({orderedBy: user._id}).populate({path: "products.product", select: "title"}).exec();
-    const {products, coupon, cartTotal, totalAfterDiscount} = cart;
-    const dollar = await Dollar.findOne({});
+    const io = socketIO.getIO();
+    let now = new Date()
+    try {
+        let order = await Order.findOneAndUpdate({
+            'paymentResponseMpesa.MerchantRequestID': MerchantRequestID,
+            'paymentResponseMpesa.CheckoutRequestID': CheckoutRequestID
+        }, {
+            $set: {
+                'paymentResponseMpesa.status': ResultCode === 0 && CallbackMetadata ? 'Success' : 'failed',
+                'paymentResponseMpesa.ResultCode': ResultCode,
+                'paymentResponseMpesa.ResultDesc': ResultDesc,
+                'paymentResponseMpesa.CallbackMetadata': CallbackMetadata,
+                'deliveryStartDate': ResultCode === 0 && CallbackMetadata ? new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000) : null,
+                'deliveryEndDate': ResultCode === 0 && CallbackMetadata ? new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000) : null,
+                'totalAmountPaid': ResultCode === 0 && CallbackMetadata ? CallbackMetadata.Item.find((item) => item.Name === "Amount").Value : null,
+                'orderStatus': ResultCode === 0 && CallbackMetadata ? 'Completed' : 'Pending'
+            }
+        }, {new: true});
 
-    let finalAmount
-    if (couponApplied && totalAfterDiscount) {
-        finalAmount = totalAfterDiscount
-    } else {
-        finalAmount = cartTotal
-    }
+        if (order) {
+            if (ResultCode !== 0 && !CallbackMetadata) {
+                console.error(`STK Push request failed with ResultCode: ${ResultCode}, ResultDesc: ${ResultDesc}`);
+                // Send response back to Safaricom
+                const response = {
+                    "ResultCode": 0,
+                    "ResultDesc": "Success"
+                };
+                const responseToClient = {ResultDesc, ResultCode}
+                io.emit('mpesaPaymentFailed', responseToClient);
+                return res.status(200).json(response);
+            } else {
+                // Payment successful
+                const {products, coupon, orderedBy} = order;
 
-    let convertedFinalAmount
-    convertedFinalAmount = (dollar.rate * finalAmount)
-
-
-    if (selectedPaymentMethod === 'Paypal') {
-        const Environment =
-            process.env.NODE_ENV === "production"
-                ? paypal.core.LiveEnvironment
-                : paypal.core.SandboxEnvironment
-
-        const paypalClient = new paypal.core.PayPalHttpClient(
-            new Environment(
-                process.env.PAYPAL_CLIENT_ID,
-                process.env.PAYPAL_CLIENT_SECRET
-            )
-        )
-
-        const request = new paypal.orders.OrdersCreateRequest()
-        request.prefer("return=representation")
-        request.requestBody({
-            intent: "CAPTURE",
-            application_context: {
-                brand_name: "myFarm",
-                landing_page: "BILLING",
-                user_action: "CONTINUE",
-            },
-            purchase_units: [{
-                reference_id: user._id,
-                description: "payment for XY company",
-                soft_descriptor: "Jewlery Fashion",
-
-                amount: {
-                    currency_code: "USD",
-                    value: finalAmount,
-                    breakdown: {
-                        item_total: {
-                            currency_code: "USD",
-                            value: finalAmount,
-                        },
-                    },
-                },
-                items: products.map(item => {
-                    console.log(item.price)
+                // Decrement quantity, increment sold
+                const bulkOption = products.map((item) => {
                     return {
-                        name: item.product.title,
-                        unit_amount: {
-                            currency_code: "USD",
-                            value: item.price,
+                        updateOne: {
+                            filter: {_id: item.product._id},
+                            update: {$inc: {quantity: -item.count, sold: item.count}},
                         },
-                        quantity: item.count,
-                    }
-                }),
-            },
-            ]
-        })
+                    };
+                });
 
-        try {
-            const order = await paypalClient.execute(request)
-            res.json({id: order.result.id})
+                await Product.bulkWrite(bulkOption, {new: true});
 
-        } catch (e) {
+                if (coupon) {
+                    const validCoupon = await Coupon.findById(coupon).exec();
+                    validCoupon.usedForPurchase = true;
+                    validCoupon.usageCount += 1;
+                    validCoupon.usedBy.push(orderedBy);
+                    await validCoupon.save();
+                }
 
-            res.status(500).json({error: e.message})
+                const successPayment = await order.save();
+                io.emit('mpesaPaymentSuccess', successPayment);
+
+                // console.log('SUCCESS PAYMENT ',successPayment)
+
+
+                const response = {
+                    "ResultCode": 0,
+                    "ResultDesc": "Success"
+                };
+                res.status(200).json(response);
+            }
+        } else {
+            console.log('Order not found');
+            return res.status(404).json({error: 'Order not found'});
         }
-
-
-    }
-    if (selectedPaymentMethod === 'Card') {
-        const newOrder = await new Order({
-            products,
-            paymentResponsePaypal: order.result,
-            orderedBy: user._id,
-            paymentMethod: selectedPaymentMethod.toLowerCase(),
-            shippingAddress,
-            totalAmountPaid: payable,
-            deliveryEndDate,
-            deliveryStartDate,
-            coupon,
-            cartTotal,
-            discountAmount
-        }).save();
-
-        // Decrement quantity, increment sold
-        const bulkOption = products.map((item) => {
-            return {
-                updateOne: {
-                    filter: {_id: item.product._id},
-                    update: {$inc: {quantity: -item.count, sold: item.count}},
-                },
-            };
-        });
-        await Product.bulkWrite(bulkOption, {new: true});
-        const today = new Date();
-        const deliveryStartDate = new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000)
-        const deliveryEndDate = new Date(today.getTime() + 10 * 24 * 60 * 60 * 1000);
-        if (coupon) {
-            const validCoupon = await Coupon.findById(coupon).exec();
-            validCoupon.usedForPurchase = true;
-            validCoupon.usageCount += 1;
-            validCoupon.usedBy.push(user._id);
-            await validCoupon.save();
-        }
-
-
+    } catch (error) {
+        console.log('Error updating order:', error);
+        return res.status(500).json({error: 'Error updating order'});
     }
 
 
 };
-
 exports.initiateMpesaOrder = async (req, res) => {
+    const {selectedPaymentMethod, phoneNumber, shippingAddress,} = req.body;
     const timestamp = moment().format('YYYYMMDDHHmmss');
-    console.log('TIMESTAMP', timestamp)
+    const user = await User.findById(req.auth._id).exec();
+    const cart = await Cart.findOne({orderedBy: user._id}).exec();
+    const {products, coupon, discountAmount, cartTotal} = cart;
     const shortCode = 174379;
     const passkey = process.env.SAFARICOM_PASS_KEY;
     const url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
-    const phone = `254${req.body.phoneNumber}`
+    const phone = `254${phoneNumber}`
     const password = new Buffer.from(shortCode + passkey + timestamp).toString("base64");
     const data = {
         BusinessShortCode: 174379,
@@ -395,10 +349,10 @@ exports.initiateMpesaOrder = async (req, res) => {
         PartyB: 174379,
         PhoneNumber: phone,
         CallBackURL: "https://galavuwal.co.ke/callback",
-        AccountReference: "CompanyXLTD",
+        AccountReference: user._id,
         TransactionDesc: "TPayment of X",
     };
-    console.log(data)
+
     try {
         const result = await axios.post(url, data,
             {
@@ -407,8 +361,27 @@ exports.initiateMpesaOrder = async (req, res) => {
                         authorization: `Bearer ${req.daraja.access_token}`
                     }
             })
-        console.log(JSON.stringify(result.data))
-        res.json(result.data)
+        const now = new Date()
+        const deliveryStartDate = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000)
+        const deliveryEndDate = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
+        await new Order({
+            products,
+            paymentResponseMpesa: {...result.data, status: 'Pending'},
+            orderedBy: user._id,
+            paymentMethod: selectedPaymentMethod.toLowerCase(),
+            shippingAddress,
+            coupon,
+            deliveryEndDate,
+            totalAmountPaid: 0,
+            deliveryStartDate,
+            cartTotal,
+            discountAmount
+        }).save()
+
+        // console.log(JSON.stringify(newOrder, null, 4))
+
+        res.json({ok: true})
+
 
     } catch (error) {
         // handle error
@@ -418,17 +391,21 @@ exports.initiateMpesaOrder = async (req, res) => {
             console.error(error.response.data);
             console.error(error.response.status);
             console.error(error.response.headers);
+            res.status(error.response.status).json({error: error.response.data});
         } else if (error.request) {
             // The request was made but no response was received
             // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
             // http.ClientRequest in node.js
             console.error(error.request);
+            res.status(500).json({error: 'Error in request'});
         } else {
             // Something happened in setting up the request that triggered an Error
             console.error('Error', error.message);
+            res.status(500).json({error: error.message});
         }
         console.error(error.config);
     }
+
 
 }
 exports.initiatePayPal = async (req, res) => {
@@ -495,7 +472,6 @@ exports.initiatePayPal = async (req, res) => {
 }
 exports.getMpesaDetails = async (req, res) => {
     const request = require('request');
-
     const consumerKey = process.env.SAFARICOM_CONSUMER_KEY;
     const consumerSecret = process.env.SAFARICOM_CONSUMER_SECRET;
     const credentials = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
@@ -524,7 +500,6 @@ exports.getMpesaDetails = async (req, res) => {
 
 
 }
-
 exports.createStripeOrder = async (req, res) => {
     const {
         shippingAddress,
@@ -598,11 +573,8 @@ exports.capturePayPalPaymentAndSavePaypalOrder = async (req, res) => {
     try {
         const user = await User.findById(req.auth._id).exec();
         const cart = await Cart.findOne({orderedBy: user._id}).exec();
-
         const {products, coupon, dollar, currencyCode, cartTotalUSD, discountAmountUSD} = cart;
-
         const capture = await paypalClient.execute(request);
-
         const result = capture.result;
         //SAVE ORDER TO DB
         if (result) {
