@@ -248,119 +248,151 @@ exports.createMpesaOrder = async (req, res) => {
         CheckoutRequestID,
         ResultCode,
         ResultDesc,
-        CallbackMetadata
+        CallbackMetadata,
     } = req.body.Body.stkCallback;
 
-    const io = socketIO.getIO();
-    let now = new Date()
+    const socketIOInstance = socketIO.getIO();
+    const currentDate = new Date();
+
     try {
-        let order = await Order.findOneAndUpdate({
-            'paymentResponseMpesa.MerchantRequestID': MerchantRequestID,
-            'paymentResponseMpesa.CheckoutRequestID': CheckoutRequestID
-        }, {
-            $set: {
-                'paymentResponseMpesa.status': ResultCode === 0 && CallbackMetadata ? 'Success' : 'failed',
-                'paymentResponseMpesa.ResultCode': ResultCode,
-                'paymentResponseMpesa.ResultDesc': ResultDesc,
-                'paymentResponseMpesa.CallbackMetadata': CallbackMetadata,
-                'deliveryStartDate': ResultCode === 0 && CallbackMetadata ? new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000) : null,
-                'deliveryEndDate': ResultCode === 0 && CallbackMetadata ? new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000) : null,
-                'totalAmountPaid': ResultCode === 0 && CallbackMetadata ? CallbackMetadata.Item.find((item) => item.Name === "Amount").Value : null,
-                'orderStatus': ResultCode === 0 && CallbackMetadata ? 'Completed' : 'Pending'
-            }
-        }, {new: true});
+        const order = await updateOrder({
+            MerchantRequestID,
+            CheckoutRequestID,
+            ResultCode,
+            ResultDesc,
+            CallbackMetadata,
+            currentDate,
+        });
 
         if (order) {
             if (ResultCode !== 0 && !CallbackMetadata) {
                 console.error(`STK Push request failed with ResultCode: ${ResultCode}, ResultDesc: ${ResultDesc}`);
-                // Send response back to Safaricom
-                const response = {
-                    "ResultCode": 0,
-                    "ResultDesc": "Success"
-                };
-                const responseToClient = {ResultDesc, ResultCode}
-                io.emit('mpesaPaymentFailed', responseToClient);
+                const response = {ResultCode: 0, ResultDesc: "Success"};
+                const responseToClient = {ResultDesc, ResultCode};
+                socketIOInstance.emit("mpesaPaymentFailed", responseToClient);
                 return res.status(200).json(response);
             } else {
-                // Payment successful
-                const {products, coupon, orderedBy} = order;
-                // Decrement quantity, increment sold
-                const bulkOption = products.map((item) => {
-                    return {
-                        updateOne: {
-                            filter: {_id: item.product._id},
-                            update: {$inc: {quantity: -item.count, sold: item.count}},
-                        },
-                    };
+                await updateProducts({products: order.products});
+                await updateCoupon({coupon: order.coupon, orderedBy: order.orderedBy});
+
+                const userData = await getUserData({
+                    orderedBy: order.orderedBy,
+                    CallbackMetadata: order.paymentResponseMpesa.CallbackMetadata
                 });
 
-                await Product.bulkWrite(bulkOption, {new: true});
+                const finalResult = {result: userData, saved: order};
+                socketIOInstance.emit("mpesaPaymentSuccess", finalResult);
 
-                if (coupon) {
-                    const validCoupon = await Coupon.findById(coupon).exec();
-                    validCoupon.usedForPurchase = true;
-                    validCoupon.usageCount += 1;
-                    validCoupon.usedBy.push(orderedBy);
-                    await validCoupon.save();
-                }
-
-
-                console.log(JSON.stringify(order, null, 4))
-
-                const user = await User.findById(orderedBy).exec();
-
-                const data = {
-                    name: `${user.firstName} ${user.middleName} ${user.surname}`,
-                    email: user.email,
-                    transactionId: order.paymentResponseMpesa.CallbackMetadata.Item.find((item) => item.Name === "MpesaReceiptNumber").Value,
-                    transactionDate: order.paymentResponseMpesa.CallbackMetadata.Item.find((item) => item.Name === "TransactionDate").Value,
-                    transactionAmount: order.paymentResponseMpesa.CallbackMetadata.Item.find((item) => item.Name === "Amount").Value
-                }
-
-                const finalResult = {result: data, saved: order}
-
-                io.emit('mpesaPaymentSuccess', finalResult);
-
-
-                const response = {
-                    "ResultCode": 0,
-                    "ResultDesc": "Success"
-                };
+                const response = {ResultCode: 0, ResultDesc: "Success"};
                 res.status(200).json(response);
             }
         } else {
-            console.log('Order not found');
-            return res.status(404).json({error: 'Order not found'});
+            console.log("Order not found");
+            return res.status(404).json({error: "Order not found"});
         }
     } catch (error) {
-        console.log('Error updating order:', error);
-        return res.status(500).json({error: 'Error updating order'});
+        console.log("Error updating order:", error);
+        return res.status(500).json({error: "Error updating order"});
     }
-
-
 };
+
+const updateOrder = async ({
+                               MerchantRequestID,
+                               CheckoutRequestID,
+                               ResultCode,
+                               ResultDesc,
+                               CallbackMetadata,
+                               currentDate
+                           }) => {
+    const filter = {
+        "paymentResponseMpesa.MerchantRequestID": MerchantRequestID,
+        "paymentResponseMpesa.CheckoutRequestID": CheckoutRequestID,
+    };
+    const update = {
+        $set: {
+            "paymentResponseMpesa.status": ResultCode === 0 && CallbackMetadata ? "Success" : "failed",
+            "paymentResponseMpesa.ResultCode": ResultCode,
+            "paymentResponseMpesa.ResultDesc": ResultDesc,
+            "paymentResponseMpesa.CallbackMetadata": CallbackMetadata,
+            deliveryStartDate: ResultCode === 0 && CallbackMetadata ? new Date(currentDate.getTime() + 5 * 24 * 60 * 60 * 1000) : null,
+            deliveryEndDate: ResultCode === 0 && CallbackMetadata ? new Date(currentDate.getTime() + 10 * 24 * 60 * 60 * 1000) : null,
+            totalAmountPaid: ResultCode === 0 && CallbackMetadata ? getItemValue("Amount", CallbackMetadata) : null,
+            orderStatus: "Pending",
+        },
+    };
+    const options = {new: true};
+    return Order.findOneAndUpdate(filter, update, options);
+};
+
+const updateProducts = async ({products}) => {
+    const bulkOption = products.map((item) => {
+        return {
+            updateOne: {
+                filter: {_id: item.product._id},
+                update: {$inc: {quantity: -item.count, sold: item.count}},
+            },
+        };
+    });
+    await Product.bulkWrite(bulkOption, {new: true});
+};
+
+const updateCoupon = async ({coupon, orderedBy}) => {
+    if (coupon) {
+        const validCoupon = await Coupon.findById(coupon).exec();
+        validCoupon.usedForPurchase = true;
+        validCoupon.usageCount += 1;
+        validCoupon.usedBy.push(orderedBy);
+        await validCoupon.save();
+    }
+};
+
+const getUserData = async ({orderedBy, CallbackMetadata}) => {
+    const user = await User.findById(orderedBy).exec();
+    return {
+        name: `${user.firstName} ${user.middleName} ${user.surname}`,
+        email: user.email,
+        transactionId: getItemValue("MpesaReceiptNumber", CallbackMetadata),
+        transactionDate: getItemValue("TransactionDate", CallbackMetadata),
+        transactionAmount: getItemValue("Amount", CallbackMetadata),
+    };
+};
+
+const getItemValue = (itemName, metadata) => {
+    const item = metadata.Item.find((item) => item.Name === itemName);
+    return item ? item.Value : null;
+};
+
+
 exports.initiateMpesaOrder = async (req, res) => {
-    const {selectedPaymentMethod, phoneNumber, shippingAddress,} = req.body;
+    const {selectedPaymentMethod, couponApplied, phoneNumber, shippingAddress,} = req.body;
     const timestamp = moment().format('YYYYMMDDHHmmss');
     const user = await User.findById(req.auth._id).exec();
     const cart = await Cart.findOne({orderedBy: user._id}).exec();
-    const {products, coupon, discountAmount, cartTotal} = cart;
-    const shortCode = 174379;
+    const {products, coupon, totalAfterDiscount, discountAmount, cartTotal} = cart;
+
+    let finalAmount
+    if (couponApplied && totalAfterDiscount) {
+        finalAmount = totalAfterDiscount
+    } else {
+        finalAmount = cartTotal
+    }
+
+    const shortCode = process.env.SAFARICOM_SHORT_CODE;
     const passkey = process.env.SAFARICOM_PASS_KEY;
     const url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
     const phone = `254${phoneNumber}`
     const password = new Buffer.from(shortCode + passkey + timestamp).toString("base64");
     const data = {
-        BusinessShortCode: 174379,
+        BusinessShortCode: process.env.SAFARICOM_SHORT_CODE,
         Password: password,
         Timestamp: timestamp,
         TransactionType: "CustomerPayBillOnline",
         Amount: 1,
         PartyA: phone,
-        PartyB: 174379,
+        PartyB: process.env.SAFARICOM_SHORT_CODE,
         PhoneNumber: phone,
         CallBackURL: "https://galavuwal.co.ke/callback",
-        AccountReference: user._id,
+        AccountReference: 'Company name',
         TransactionDesc: "TPayment of X",
     };
 
