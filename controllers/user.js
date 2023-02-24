@@ -284,7 +284,6 @@ exports.createMpesaOrder = async (req, res) => {
             } else {
                 // Payment successful
                 const {products, coupon, orderedBy} = order;
-
                 // Decrement quantity, increment sold
                 const bulkOption = products.map((item) => {
                     return {
@@ -305,10 +304,22 @@ exports.createMpesaOrder = async (req, res) => {
                     await validCoupon.save();
                 }
 
-                const successPayment = await order.save();
-                io.emit('mpesaPaymentSuccess', successPayment);
 
-                // console.log('SUCCESS PAYMENT ',successPayment)
+                console.log(JSON.stringify(order, null, 4))
+
+                const user = await User.findById(orderedBy).exec();
+
+                const data = {
+                    name: `${user.firstName} ${user.middleName} ${user.surname}`,
+                    email: user.email,
+                    transactionId: order.paymentResponseMpesa.CallbackMetadata.Item.find((item) => item.Name === "MpesaReceiptNumber").Value,
+                    transactionDate: order.paymentResponseMpesa.CallbackMetadata.Item.find((item) => item.Name === "TransactionDate").Value,
+                    transactionAmount: order.paymentResponseMpesa.CallbackMetadata.Item.find((item) => item.Name === "Amount").Value
+                }
+
+                const finalResult = {result: data, saved: order}
+
+                io.emit('mpesaPaymentSuccess', finalResult);
 
 
                 const response = {
