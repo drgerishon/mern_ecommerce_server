@@ -1,0 +1,87 @@
+[
+  {
+    "action": "read",
+    "subject": "Product",
+    "description": "View products"
+  },
+  {
+    "action": "create",
+    "subject": "Product",
+    "description": "Add products"
+  },
+  {
+    "action": "update",
+    "subject": "Product",
+    "description": "Modify products"
+  },
+  {
+    "action": "delete",
+    "subject": "Product",
+    "description": "Remove products"
+  },
+  {
+    "action": "read",
+    "subject": "Order",
+    "description": "View orders"
+  },
+  {
+    "action": "update",
+    "subject": "Order",
+    "description": "Modify orders"
+  },
+  {
+    "action": "read",
+    "subject": "Delivery",
+    "description": "View delivery details"
+  },
+  {
+    "action": "create",
+    "subject": "Delivery",
+    "description": "Add delivery details"
+  },
+  {
+    "action": "update",
+    "subject": "Delivery",
+    "description": "Modify delivery details"
+  },
+  {
+    "action": "delete",
+    "subject": "Delivery",
+    "description": "Remove delivery details"
+  },
+  {
+    "action": "read",
+    "subject": "Payment",
+    "description": "View payment details"
+  },
+  {
+    "action": "create",
+    "subject": "Payment",
+    "description": "Add payment details"
+  },
+  {
+    "action": "update",
+    "subject": "Payment",
+    "description": "Modify payment details"
+  },
+  {
+    "action": "delete",
+    "subject": "Payment",
+    "description": "Remove payment details"
+  },
+  {
+    "action": "read",
+    "subject": "Feedback",
+    "description": "View feedback"
+  },
+  {
+    "action": "create",
+    "subject": "Feedback",
+    "description": "Add feedback"
+  },
+  {
+    "action": "update",
+    "subject": "Feedback",
+    "description": "Modify feedback"
+  }
+]

@@ -2,6 +2,7 @@ const Category = require('../models/category')
 const Sub = require('../models/sub')
 const Product = require('../models/product')
 const slugify = require("slugify");
+
 const {errorHandler} = require("../helpers/dbErrorHandler")
 
 exports.create = async (req, res) => {

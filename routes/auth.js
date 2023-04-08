@@ -4,14 +4,13 @@ const {
     signout,
     signin,
     preSignup,
-    signupByAdmin,
     forgotPassword,
     resetPassword,
-    currentUser,
-    googleLogin
+    googleLogin,
+    proceed
 } = require('../controllers/auth')
 
-const {adminCheck, requireSignin} = require('../middlewares/auth')
+const {adminCheck, requireSignin, authCheck} = require('../middlewares/auth')
 
 
 const router = express.Router()
@@ -24,13 +23,16 @@ const {
     forgotPasswordValidator,
     resetPasswordValidator
 } = require('../validators/auth')
+const {authorize} = require("../middlewares/authorize");
 
 
 router.post('/pre-signup', userSignupValidator, runValidation, preSignup)
 router.post('/signup', signup)
-router.post('/super-signup', signupByAdmin)
 router.post('/signin', signin)
-router.post('/current-admin', requireSignin, adminCheck, currentUser)
+router.post('/current-admin', requireSignin, authCheck, adminCheck, proceed)
+router.post('/current-user', requireSignin, authCheck, proceed)
+
+
 router.get('/signout', signout)
 router.put('/forgot-password', forgotPasswordValidator, runValidation, forgotPassword)
 router.put('/reset-password', resetPasswordValidator, runValidation, resetPassword)

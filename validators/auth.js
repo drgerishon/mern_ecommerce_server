@@ -5,17 +5,17 @@ exports.userSignupValidator = [
         .notEmpty(),
     check('surname', 'Surname is required')
         .notEmpty(),
-    check('phone', 'Your phone number is required')
+    check('phoneNumber', 'Your phone number is required')
         .notEmpty(),
 
     check('email', 'Email address is required')
         .notEmpty()
         .isEmail()
         .withMessage('Must be a valid email address'),
-    // check('dob', 'Select you date of birth')
-    //     .notEmpty()
-    //     .isDate()
-    //     .withMessage('Must be a valid date'),
+    check('dob', 'Select you date of birth')
+        .notEmpty()
+        .isDate()
+        .withMessage('Must be a valid date'),
     check("password", "Password is required")
         .notEmpty()
         .isLength({min: 8})
@@ -25,7 +25,7 @@ exports.userSignupValidator = [
         })
         .withMessage("Password can contain max 120 characters")
     ,
-    check('password1', 'Confirmation password cannot be empty')
+    check('confirmPassword', 'Confirmation password cannot be empty')
         .notEmpty()
         .custom((value, {req}) => {
 

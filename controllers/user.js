@@ -23,6 +23,7 @@ const {convertPriceToDollar} = require("../helpers/priceToDollar");
 const {calculateCartTotals} = require("../helpers/calculateCartTotals");
 
 
+
 const Environment =
     process.env.NODE_ENV === "production"
         ? paypal.core.LiveEnvironment
@@ -150,43 +151,87 @@ exports.verifyTokenController = (req, res) => {
 }
 
 
+// exports.orders = async (req, res) => {
+//     const user = await User.findById(req.auth._id).exec()
+//     const userOrders = await Order.find({orderedBy: user._id})
+//         .select("-shippingAddress -coupon -conversionRate ")
+//         .populate('products.product')
+//         .exec()
+//     let orderArray = []
+//     userOrders.map(order => {
+//         let paymentStatus = null
+//
+//         if (order.paymentMethod === 'card') {
+//             paymentStatus = order.paymentIntentStripe.status
+//         } else if (order.paymentMethod === 'paypal') {
+//             paymentStatus = order.paymentResponsePaypal.status
+//         } else if (order.paymentMethod === 'mpesa' && order.paymentResponseMpesa.status === 'Success') {
+//             paymentStatus = order.paymentResponseMpesa.status
+//         }
+//
+//         if (paymentStatus !== null) {
+//             orderArray.push({
+//                 orderId: order.orderId,
+//                 _id: order._id,
+//                 products: order.products,
+//                 amount: order.totalAmountPaid,
+//                 shippingStatus: order.shippingStatus,
+//                 currencyCode: order.currencyCode,
+//                 paymentMethod: order.paymentMethod,
+//                 paymentStatus: paymentStatus,
+//                 orderDate: order.orderDate,
+//                 orderStatus: order.orderStatus
+//             })
+//         }
+//     })
+//
+//     console.log(JSON.stringify(orderArray, null, 4))
+//     res.json(orderArray)
+// }
 exports.orders = async (req, res) => {
-    const user = await User.findById(req.auth._id).exec()
-    const userOrders = await Order.find({orderedBy: user._id})
-        .select("-shippingAddress -coupon -conversionRate ")
-        .populate('products.product')
-        .exec()
-    let orderArray = []
-    userOrders.map(order => {
-        let paymentStatus = null
+    try {
+        const user = await User.findById(req.auth._id).exec();
+        const userOrders = await Order.find({orderedBy: user._id})
+            .select('-shippingAddress -coupon -conversionRate')
+            .populate('products.product')
+            .exec();
 
-        if (order.paymentMethod === 'card') {
-            paymentStatus = order.paymentIntentStripe.status
-        } else if (order.paymentMethod === 'paypal') {
-            paymentStatus = order.paymentResponsePaypal.status
-        } else if (order.paymentMethod === 'mpesa' && order.paymentResponseMpesa.status === 'Success') {
-            paymentStatus = order.paymentResponseMpesa.status
-        }
+        let orderArray = [];
 
-        if (paymentStatus !== null) {
-            orderArray.push({
-                orderId: order.orderId,
-                _id: order._id,
-                products: order.products,
-                amount: order.totalAmountPaid,
-                shippingStatus: order.shippingStatus,
-                currencyCode: order.currencyCode,
-                paymentMethod: order.paymentMethod,
-                paymentStatus: paymentStatus,
-                orderDate: order.orderDate,
-                orderStatus: order.orderStatus
-            })
-        }
-    })
+        userOrders.map((order) => {
+            let paymentStatus = null;
 
-    console.log(JSON.stringify(orderArray, null, 4))
-    res.json(orderArray)
-}
+            if (order.paymentMethod === 'card') {
+                paymentStatus = order.paymentIntentStripe.status;
+            } else if (order.paymentMethod === 'paypal') {
+                paymentStatus = order.paymentResponsePaypal.status;
+            } else if (order.paymentMethod === 'mpesa' && order.paymentResponseMpesa.status === 'Success') {
+                paymentStatus = order.paymentResponseMpesa.status;
+            }
+
+            if (paymentStatus !== null) {
+                orderArray.push({
+                    orderId: order.orderId,
+                    _id: order._id,
+                    products: order.products,
+                    amount: order.totalAmountPaid,
+                    shippingStatus: order.shippingStatus,
+                    currencyCode: order.currencyCode,
+                    paymentMethod: order.paymentMethod,
+                    paymentStatus: paymentStatus,
+                    orderDate: order.orderDate,
+                    orderStatus: order.orderStatus,
+                });
+            }
+        });
+
+        console.log(JSON.stringify(orderArray, null, 4));
+        res.json(orderArray);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({message: 'Something went wrong'});
+    }
+};
 
 
 exports.addToWishList = async (req, res) => {

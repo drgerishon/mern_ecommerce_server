@@ -42,19 +42,29 @@ const createPermissions = async (db, permissionsData) => {
     }
 };
 
-async function dropRolesCollection(db) {
-    try {
-        await db.collection('roles').drop();
-        console.log('Dropped roles collection');
-    } catch (error) {
-        console.log('No roles collection found');
+
+const updateUsersWithNewRoleIds = async (db, oldRoleIds, newRoleIds) => {
+    for (let i = 0; i < oldRoleIds.length; i++) {
+        const oldRoleId = oldRoleIds[i];
+        const newRoleId = newRoleIds[i];
+        await db.collection('users').updateMany(
+            {role: new ObjectId(oldRoleId)},
+            {$set: {role: new ObjectId(newRoleId)}}
+        );
     }
 }
 
+const removeDuplicates = (permissions) => {
+    return permissions.filter((permission, index, self) =>
+            index === self.findIndex((p) => (
+                p.action === permission.action && p.subject === permission.subject
+            ))
+    );
+};
+
 module.exports = {
     async up(db) {
-        // Drop the roles collection if it exists
-        await dropRolesCollection(db);
+
 
         // Read the permission data from files
         const adminPermissions = JSON.parse(
@@ -73,23 +83,51 @@ module.exports = {
             fs.readFileSync(path.join(process.cwd(), 'institute.json'), 'utf-8')
         );
 
+        // Remove duplicates from permission arrays
+        const adminPermissionsUnique = removeDuplicates(adminPermissions);
+        const subscriberPermissionsUnique = removeDuplicates(subscriberPermissions);
+        const farmerPermissionsUnique = removeDuplicates(farmerPermissions);
+        const carrierPermissionsUnique = removeDuplicates(carrierPermissions);
+        const institutePermissionsUnique = removeDuplicates(institutePermissions);
+
         // Combine all permissions and remove duplicates
         const combinedPermissions = [
-            ...adminPermissions,
-            ...subscriberPermissions,
-            ...farmerPermissions,
-            ...carrierPermissions,
-            ...institutePermissions
+            ...adminPermissionsUnique,
+            ...subscriberPermissionsUnique,
+            ...farmerPermissionsUnique,
+            ...carrierPermissionsUnique,
+            ...institutePermissionsUnique
         ];
 
-        const uniquePermissions = combinedPermissions.filter((permission, index, self) =>
+        const uniquePermissions = Array.from(new Set(combinedPermissions.map(JSON.stringify))).map(JSON.parse).filter((permission, index, self) =>
                 index === self.findIndex((p) => (
                     p.action === permission.action && p.subject === permission.subject
                 ))
         );
 
         // Insert unique permissions to the database
-        await createPermissions(db, uniquePermissions);
+        const createPermissions = async (db, permissionsData) => {
+            const bulkOps = permissionsData.map(permission => ({
+                updateOne: {
+                    filter: {action: permission.action, subject: permission.subject},
+                    update: {$set: permission},
+                    upsert: true,
+                }
+            }));
+
+            if (bulkOps.length === 0) {
+                console.log('No new permissions to create.');
+                return;
+            }
+
+            try {
+                const result = await db.collection('permissions').bulkWrite(bulkOps);
+                console.log(`Permissions upserted: ${result.upsertedCount}`);
+            } catch (error) {
+                console.error('Error creating new permissions:', error);
+                throw error;
+            }
+        };
 
         // Get the inserted permissions from the database
         const insertedPermissions = await db.collection('permissions').find({}).toArray();
@@ -130,6 +168,22 @@ module.exports = {
             code: 5000,
             permissions: institutePermissions.map(p => getPermissionObjectId(p.action, p.subject)).filter(id => id),
         });
+
+        const oldRoleIds = [adminRole, subscriberRole, farmerRole, carrierRole, instituteRole].map(
+            (role) => role._id
+        );
+
+
+        const newRoleIds = [
+            adminRole._id,
+            subscriberRole._id,
+            farmerRole._id,
+            carrierRole._id,
+            instituteRole._id,
+        ];
+
+        // Update users with the new role IDs
+        await updateUsersWithNewRoleIds(db, oldRoleIds, newRoleIds);
     },
 
 

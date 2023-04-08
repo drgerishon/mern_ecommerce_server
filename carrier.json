@@ -1,0 +1,22 @@
+[
+  {
+    "action": "read",
+    "subject": "Order",
+    "description": "View orders"
+  },
+  {
+    "action": "update",
+    "subject": "Order",
+    "description": "Modify orders"
+  },
+  {
+    "action": "read",
+    "subject": "Delivery",
+    "description": "View delivery details"
+  },
+  {
+    "action": "update",
+    "subject": "Delivery",
+    "description": "Modify delivery details"
+  }
+]

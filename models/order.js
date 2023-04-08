@@ -1,6 +1,7 @@
 const mongoose = require('mongoose')
 const {ObjectId} = mongoose.Schema
 const Counter = require('./counter')
+const {accessibleRecordsPlugin} = require('@casl/mongoose');
 
 const OrderSchema = new mongoose.Schema(
     {
@@ -101,6 +102,7 @@ OrderSchema.post("save", function (doc) {
     console.log("A new order was created:", doc);
 });
 
+OrderSchema.plugin(accessibleRecordsPlugin);
 const Order = mongoose.model("Order", OrderSchema);
 
 module.exports = Order;

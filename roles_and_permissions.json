@@ -1,0 +1,196 @@
+[
+  {
+    "name": "admin",
+    "code": 1000,
+    "permissions": [
+      {
+        "action": "manage",
+        "subject": "all",
+        "description": "Admin can manage all resources"
+      }
+    ]
+  },
+  {
+    "name": "institution",
+    "code": 2000,
+    "permissions": [
+      {
+        "action": "read",
+        "subject": "Product",
+        "description": "Institution can view products"
+      },
+      {
+        "action": "read",
+        "subject": "Category",
+        "description": "Institution can view categories"
+      },
+      {
+        "action": "read",
+        "subject": "Subcategory",
+        "description": "Institution can view subcategories"
+      },
+      {
+        "action": "create",
+        "subject": "Cart",
+        "own": true,
+        "description": "Institution can create own cart"
+      },
+      {
+        "action": "read",
+        "subject": "Cart",
+        "own": true,
+        "description": "Institution can view own cart"
+      },
+      {
+        "action": "update",
+        "subject": "Cart",
+        "own": true,
+        "description": "Institution can update own cart"
+      },
+      {
+        "action": "create",
+        "subject": "Order",
+        "own": true,
+        "description": "Institution can create own order"
+      },
+      {
+        "action": "read",
+        "subject": "Order",
+        "own": true,
+        "description": "Institution can view own orders"
+      }
+    ]
+  },
+  {
+    "name": "subscriber",
+    "code": 3000,
+    "permissions": [
+      {
+        "action": "read",
+        "subject": "Product",
+        "description": "Subscriber can view products"
+      },
+      {
+        "action": "read",
+        "subject": "Category",
+        "description": "Subscriber can view categories"
+      },
+      {
+        "action": "read",
+        "subject": "Subcategory",
+        "description": "Subscriber can view subcategories"
+      },
+      {
+        "action": "create",
+        "subject": "Cart",
+        "own": true,
+        "description": "Subscriber can create own cart"
+      },
+      {
+        "action": "read",
+        "subject": "Cart",
+        "own": true,
+        "description": "Subscriber can view own cart"
+      },
+      {
+        "action": "update",
+        "subject": "Cart",
+        "own": true,
+        "description": "Subscriber can update own cart"
+      },
+      {
+        "action": "create",
+        "subject": "Order",
+        "own": true,
+        "description": "Subscriber can create own order"
+      },
+      {
+        "action": "read",
+        "subject": "Order",
+        "own": true,
+        "description": "Subscriber can view own orders"
+      }
+    ]
+  },
+  {
+    "name": "carrier",
+    "code": 4000,
+    "permissions": [
+      {
+        "action": "read",
+        "subject": "Order",
+        "own": true,
+        "description": "Carrier can view own orders"
+      },
+      {
+        "action": "update",
+        "subject": "Order",
+        "own": true,
+        "fields": [
+          "status"
+        ],
+        "description": "Carrier can update own order status"
+      }
+    ]
+  },
+  {
+    "name": "farmer",
+    "code": 5000,
+    "permissions": [
+      {
+        "action": "read",
+        "subject": "Product",
+        "description": "Farmer can view products"
+      },
+      {
+        "action": "read",
+        "subject": "Category",
+        "description": "Farmer can view categories"
+      },
+      {
+        "action": "read",
+        "subject": "Subcategory",
+        "description": "Farmer can view subcategories"
+      },
+      {
+        "action": "create",
+        "subject": "Product",
+        "own": true,
+        "description": "Farmer can create own products"
+      },
+      {
+        "action": "read",
+        "subject": "Product",
+        "own": true,
+        "description": "Farmer can view own products"
+      },
+      {
+        "action": "update",
+        "subject": "Product",
+        "own": true,
+        "description": "Farmer can update own products"
+      },
+      {
+        "action": "delete",
+        "subject": "Product",
+        "own": true,
+        "description": "Farmer can delete own products"
+      },
+      {
+        "action": "read",
+        "subject": "Order",
+        "own": true,
+        "description": "Farmer can view own orders"
+      },
+      {
+        "action": "update",
+        "subject": "Order",
+        "own": true,
+        "fields": [
+          "status"
+        ],
+        "description": "Farmer can update own order status"
+      }
+    ]
+  }
+]

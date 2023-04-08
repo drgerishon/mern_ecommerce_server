@@ -3,11 +3,10 @@
 const config = {
   mongodb: {
     // TODO Change (or review) the url to your MongoDB:
-    url: "mongodb://localhost:27017",
+    url: "mongodb://localhost:2274",
 
     // TODO Change this to your database name:
-    databaseName: "YOURDATABASENAME",
-
+    databaseName: "farm",
     options: {
       useNewUrlParser: true, // removes a deprecation warning when connecting
       useUnifiedTopology: true, // removes a deprecating warning when connecting
@@ -34,3 +33,6 @@ const config = {
 };
 
 module.exports = config;
+
+
+

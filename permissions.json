@@ -1,0 +1,222 @@
+[
+  {
+    "action": "read",
+    "subject": "Product",
+    "description": "View products"
+  },
+  {
+    "action": "create",
+    "subject": "Product",
+    "description": "Add products"
+  },
+  {
+    "action": "update",
+    "subject": "Product",
+    "description": "Modify products"
+  },
+  {
+    "action": "delete",
+    "subject": "Product",
+    "description": "Remove products"
+  },
+  {
+    "action": "read",
+    "subject": "Order",
+    "description": "View orders"
+  },
+  {
+    "action": "create",
+    "subject": "Order",
+    "description": "Place orders"
+  },
+  {
+    "action": "update",
+    "subject": "Order",
+    "description": "Modify orders"
+  },
+  {
+    "action": "delete",
+    "subject": "Order",
+    "description": "Cancel orders"
+  },
+  {
+    "action": "read",
+    "subject": "Coupon",
+    "description": "View coupons"
+  },
+  {
+    "action": "create",
+    "subject": "Coupon",
+    "description": "Create coupons"
+  },
+  {
+    "action": "update",
+    "subject": "Coupon",
+    "description": "Modify coupons"
+  },
+  {
+    "action": "delete",
+    "subject": "Coupon",
+    "description": "Remove coupons"
+  },
+  {
+    "action": "read",
+    "subject": "Store",
+    "description": "View stores"
+  },
+  {
+    "action": "create",
+    "subject": "Store",
+    "description": "Create stores"
+  },
+  {
+    "action": "update",
+    "subject": "Store",
+    "description": "Modify stores"
+  },
+  {
+    "action": "delete",
+    "subject": "Store",
+    "description": "Remove stores"
+  },
+  {
+    "action": "read",
+    "subject": "Delivery",
+    "description": "View delivery details"
+  },
+  {
+    "action": "create",
+    "subject": "Delivery",
+    "description": "Add delivery details"
+  },
+  {
+    "action": "update",
+    "subject": "Delivery",
+    "description": "Modify delivery details"
+  },
+  {
+    "action": "delete",
+    "subject": "Delivery",
+    "description": "Remove delivery details"
+  },
+  {
+    "action": "read",
+    "subject": "Payment",
+    "description": "View payment details"
+  },
+  {
+    "action": "create",
+    "subject": "Payment",
+    "description": "Add payment details"
+  },
+  {
+    "action": "update",
+    "subject": "Payment",
+    "description": "Modify payment details"
+  },
+  {
+    "action": "delete",
+    "subject": "Payment",
+    "description": "Remove payment details"
+  },
+  {
+    "action": "read",
+    "subject": "Role",
+    "description": "View roles"
+  },
+  {
+    "action": "create",
+    "subject": "Role",
+    "description": "Create roles"
+  },
+  {
+    "action": "update",
+    "subject": "Role",
+    "description": "Modify roles"
+  },
+  {
+    "action": "delete",
+    "subject": "Role",
+    "description": "Remove roles"
+  },
+  {
+    "action": "read",
+    "subject": "User",
+    "description": "View user details"
+  },
+  {
+    "action": "create",
+    "subject": "User",
+    "description": "Create user accounts"
+  },
+  {
+    "action": "update",
+    "subject": "User",
+    "description": "Modify user details"
+  },
+  {
+    "action": "delete",
+    "subject": "User",
+    "description": "Remove user accounts"
+  },
+  {
+    "action": "read",
+    "subject": "Subscription",
+    "description": "View subscription details"
+  },
+  {
+    "action": "create",
+    "subject": "Subscription",
+    "description": "Create subscriptions"
+  },
+  {
+    "action": "update",
+    "subject": "Subscription",
+    "description": "Modify subscription details"
+  },
+  {
+    "action": "delete",
+    "subject": "Subscription",
+    "description": "Remove subscriptions"
+  },
+  {
+    "action": "read",
+    "subject": "Feedback",
+    "description": "View feedback"
+  },
+  {
+    "action": "create",
+    "subject": "Feedback",
+    "description": "Add feedback"
+  },
+  {
+    "action": "update",
+    "subject": "Feedback",
+    "description": "Modify feedback"
+  },
+  {
+    "action": "delete",
+    "subject": "Feedback",
+    "description": "Remove feedback"
+  },
+  {
+    "action": "read",
+    "subject": "Permission",
+    "description": "View permission"
+  },
+  {
+    "action": "create",
+    "subject": "Permission",
+    "description": "Add permission"
+  },
+  {
+    "action": "update",
+    "subject": "Permission",
+    "description": "Modify permission"
+  },
+  {
+    "action": "delete",
+    "subject": "Permission",
+    "description": "Remove permission"
+  }
+]

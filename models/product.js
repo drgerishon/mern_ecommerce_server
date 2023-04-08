@@ -22,6 +22,10 @@ const productSchema = new mongoose.Schema(
             text: true,
             maxlength: 2000
         },
+        isFeatured: {
+            type: Boolean,
+            default: false
+        },
 
         brand: {
             type: String,

@@ -1,4 +1,3 @@
-
 ### Node ###
 # Logs
 logs
@@ -138,3 +137,6 @@ dist
 
 # SvelteKit build / generate output
 .svelte-kit
+
+# Added to ignore admin_secrets.json
+admin_secrets.json

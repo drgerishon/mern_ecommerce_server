@@ -3,7 +3,6 @@ const Product = require("../models/product");
 const User = require("../models/user");
 const {errorHandler} = require("../helpers/dbErrorHandler");
 exports.list = async (req, res) => {
-
     try {
         const {sort, order, page} = req.body
 
@@ -36,6 +35,20 @@ exports.create = async (req, res) => {
         console.log(err)
         // res.status(400).send(' Product Create failed')
         res.status(400).send({error: err.message})
+    }
+};
+exports.listFeaturedProducts = async (req, res) => {
+    console.log('hitted')
+    try {
+        const featuredProducts = await Product.find({ isFeatured: true })
+            .sort({ createdAt: -1 })
+            .populate('category')
+            .populate('subs')
+            .exec();
+
+        res.json(featuredProducts);
+    } catch (error) {
+        res.status(400).send({ error: error.message });
     }
 };
 
@@ -89,7 +102,6 @@ exports.productsCount = async (req, res) => {
     try {
         let total = await Product.find().estimatedDocumentCount().exec()
         res.json(total)
-
     } catch (e) {
         res.status(400).send({error: e.message})
     }

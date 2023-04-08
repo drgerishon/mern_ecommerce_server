@@ -1,5 +1,17 @@
 const mongoose = require('mongoose')
-const crypto = require('crypto')
+const {hashPassword} = require("../utils/password-utils");
+const bcrypt = require("bcrypt");
+
+async function checkUnique(field, value) {
+    if (value) {
+        const user = await this.constructor.findOne({[field]: value});
+        if (user && String(user._id) !== String(this._id)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 const {ObjectId} = mongoose.Schema
 const addressSchema = new mongoose.Schema({
     streetAddress: {
@@ -50,16 +62,18 @@ const userSchema = new mongoose.Schema(
             lowercase: true,
         },
 
-        // phoneNumber: {
-        //     type: String,
-        //     validate: {
-        //         validator: function (v) {
-        //             return /^(?:\+254|0)[17]\d{8}$/.test(v);
-        //         },
-        //         message: '{VALUE} is not a valid  phone number!'
-        //     },
-        //     required: [true, 'User phone number required']
-        // },
+        phoneNumber: {
+            type: String,
+            trim: true,
+            unique: true,
+            validate: {
+                validator: function (v) {
+                    return /^(?:\+254|0)[17]\d{8}$/.test(v);
+                },
+                message: '{VALUE} is not a valid  phone number!'
+            },
+            // required: [true, 'User phone number required']
+        },
         firstName: {
             type: String,
             trim: true,
@@ -70,19 +84,26 @@ const userSchema = new mongoose.Schema(
             type: String,
             trim: true,
             max: 32,
-        }
-        , surname: {
+        },
+        surname: {
             type: String,
             trim: true,
             required: true,
             max: 32,
         },
-        drivingLicense: {
-            type: String,
-        },
         idNo: {
             type: String,
+            unique: true,
+            sparse: true,
         },
+        drivingLicense: {
+            type: String,
+            unique: true,
+            sparse: true,
+
+        },
+
+
         location: String,
         email: {
             type: String,
@@ -92,16 +113,18 @@ const userSchema = new mongoose.Schema(
             required: true,
             lowercase: true,
         },
+
         role: {
-            type: String,
-            default: 'subscriber',
-            enum: ["subscriber", "admin", "carrier", "farmer"]
+            type: ObjectId,
+            ref: 'Role',
+            required: true,
         },
+
         dob: {
             type: Date,
         },
         terms: {
-            type: String,
+            type: Boolean,
             required: true,
             default: false
         },
@@ -117,8 +140,12 @@ const userSchema = new mongoose.Schema(
         suspended: {
             type: Boolean,
             default: false,
-
         },
+        active: {
+            type: Boolean,
+            default: true
+        },
+
         cart: {
             type: Array,
             default: []
@@ -133,6 +160,24 @@ const userSchema = new mongoose.Schema(
             required: true,
         },
         salt: String,
+        suspensionCount: {
+            type: Number,
+            default: 0,
+        },
+        suspensionStart: {
+            type: Date,
+            default: null,
+        },
+        suspensionEnd: {
+            type: Date,
+            default: null,
+        },
+
+        suspensionPeriod: {
+            type: Number,
+            default: null,
+        },
+
         about: {
             type: String,
         },
@@ -144,41 +189,72 @@ const userSchema = new mongoose.Schema(
     {timestamps: true}
 )
 
-userSchema
-    .virtual('password')
-    .set(function (password) {
-        // create a temporarity variable called _password
-        this._password = password
-        // generate salt
-        this.salt = this.makeSalt()
-        // encryptPassword
-        this.hashed_password = this.encryptPassword(password)
-    })
-    .get(function () {
-        return this._password
-    })
+userSchema.pre('validate', async function (next) {
+    // Hash the password if it's a new or modified password
+    if ((this.isNew || this.isModified('_password')) && this._password) {
+        this.hashed_password = await hashPassword(this._password);
+    }
+
+    next();
+});
+
 
 userSchema.methods = {
-    authenticate: function (plainText) {
-        return this.encryptPassword(plainText) === this.hashed_password
+    authenticate: async function (plainText) {
+        return await bcrypt.compare(plainText, this.hashed_password);
     },
+    updateUser: async function (updateData) {
+        // Update user fields
+        Object.assign(this, updateData);
 
-    encryptPassword: function (password) {
-        if (!password) return ''
-        try {
-            return crypto
-                .createHmac('sha1', this.salt)
-                .update(password)
-                .digest('hex')
-        } catch (err) {
-            return ''
+        // Check for updates to active, blocked, and suspended fields
+        if (this.active) {
+            this.setActive();
+        } else if (this.blocked) {
+            await this.setBlocked();
+        } else if (this.suspended) {
+            this.active = false;
+            this.blocked = false;
+            this.suspended = true;
+            this.suspensionCount++;
+            const suspensionEndTime = new Date(Date.now() + this.suspensionPeriod);
+            this.suspensionStart = new Date();
+            this.suspensionEnd = suspensionEndTime;
+            if (this.suspensionCount >= 3) {
+                await this.setBlocked();
+            }
         }
+
+        // Reset the suspension count if it's set to 0
+        if (updateData.hasOwnProperty('suspensionCount') && updateData.suspensionCount === 0) {
+            this.suspensionCount = 0;
+        }
+
+        await this.save();
     },
 
-    makeSalt: function () {
-        return Math.round(new Date().valueOf() * Math.random()) + ''
+
+    setActive: function () {
+        this.active = true;
+        this.blocked = false;
+        this.suspended = false;
     },
-}
+    setBlocked: async function () {
+        this.active = false;
+        this.blocked = true;
+        this.suspended = false;
+        this.suspensionCount = 0;
+        await this.save();
+    },
+    reactivateIfSuspended: async function () {
+        if (this.suspended && this.suspensionEnd && new Date(this.suspensionEnd) < new Date()) {
+            this.setActive();
+            await this.save();
+        }
+    }
 
+};
+const User = mongoose.model('User', userSchema);
 
-module.exports = mongoose.model('User', userSchema)
+module.exports = User;
+

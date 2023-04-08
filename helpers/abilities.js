@@ -1,22 +1,29 @@
-const {AbilityBuilder, createMongoAbility} = require('@casl/ability');
-const User = require('../models/user');
+// abilities.js
+const { AbilityBuilder, createMongoAbility } = require('@casl/ability');
+const User = require('mongoose').model('User');
+
+const {CustomError} = require("../middlewares/errorHandler");
 
 
-exports.buildAbilityForUser = async (userId) => {
-    const user = await User.findById(userId).populate({path: 'role', populate: {path: 'permissions'}});
-    if (!user) {
-        throw new Error(`User with id ${userId} not found`);
-    }
-    console.log('USER',user);
+const defineAbilitiesFor = async (userId) => {
+  const user = await User.findById(userId).populate({
+    path: 'role',
+    populate: { path: 'permissions' },
+  });
 
-    const {can, cannot, build} = new AbilityBuilder(createMongoAbility);
+  if (!user) {
+    throw new CustomError(404, `User with id ${userId} not found`);
+  }
 
-    const permissions = user.role.permissions;
+  const { can, cannot, build } = new AbilityBuilder(createMongoAbility);
 
-    permissions.forEach((permission) => {
-        const [action, subject] = permission.name.split(':');
-        can(action, subject, permission.conditions);
-    });
+  const permissions = user.role.permissions;
 
-    return build({can, cannot});
+  permissions.forEach((permission) => {
+    can(permission.action, permission.subject);
+  });
+
+  return build({ can, cannot });
 };
+
+module.exports = { defineAbilitiesFor };
